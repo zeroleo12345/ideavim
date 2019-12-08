@@ -17,17 +17,20 @@
  */
 package com.maddyhome.idea.vim.action.copy
 
+import com.intellij.codeInsight.editorActions.TextBlockTransferableData
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.CommandFlags
+import com.maddyhome.idea.vim.command.CommandState
 import com.maddyhome.idea.vim.command.SelectionType
 import com.maddyhome.idea.vim.common.TextRange
 import com.maddyhome.idea.vim.group.visual.VimSelection
 import com.maddyhome.idea.vim.handler.VisualOperatorActionHandler
 import com.maddyhome.idea.vim.helper.enumSetOf
+import com.maddyhome.idea.vim.ui.ClipboardHandler
 import java.util.*
 
 /**
@@ -36,7 +39,7 @@ import java.util.*
 class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
   override val type: Command.Type = Command.Type.COPY
 
-  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_LINEWISE, CommandFlags.FLAG_EXIT_VISUAL)
+  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_EXIT_VISUAL)
 
   override fun executeForAllCarets(editor: Editor,
                                    context: DataContext,
@@ -54,7 +57,17 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     val startsArray = starts.toIntArray()
     val endsArray = ends.toIntArray()
 
-    val selection = if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
-    return VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    val mode = CommandState.getInstance(editor).getSubMode();
+//    val selection = if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
+//    val ret = VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    val ret = VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), SelectionType.fromSubMode(mode), true)
+    val register = VimPlugin.getRegister()
+    val systemRegister = register.getRegister(register.defaultRegister)
+    if (systemRegister != null) {
+      val text = systemRegister.text
+      val transferableData = arrayListOf<TextBlockTransferableData>()
+      ClipboardHandler.setClipboardText(text, transferableData, text)
+    }
+    return ret
   }
 }
