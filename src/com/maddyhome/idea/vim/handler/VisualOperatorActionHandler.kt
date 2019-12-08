@@ -20,13 +20,14 @@ package com.maddyhome.idea.vim.handler
 
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.Ref
 import com.maddyhome.idea.vim.VimPlugin
+import com.maddyhome.idea.vim.action.change.VimRepeater
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.CommandState
 import com.maddyhome.idea.vim.command.SelectionType
 import com.maddyhome.idea.vim.group.MotionGroup
 import com.maddyhome.idea.vim.group.visual.VimBlockSelection
@@ -34,6 +35,8 @@ import com.maddyhome.idea.vim.group.visual.VimSelection
 import com.maddyhome.idea.vim.group.visual.VimSimpleSelection
 import com.maddyhome.idea.vim.group.visual.VisualChange
 import com.maddyhome.idea.vim.group.visual.VisualOperation
+import com.maddyhome.idea.vim.helper.commandState
+import com.maddyhome.idea.vim.helper.exitVisualMode
 import com.maddyhome.idea.vim.helper.inBlockSubMode
 import com.maddyhome.idea.vim.helper.inRepeatMode
 import com.maddyhome.idea.vim.helper.inVisualMode
@@ -107,10 +110,8 @@ sealed class VisualOperatorActionHandler : VimActionHandler.SingleExecution() {
     editor.vimChangeActionSwitchMode = null
 
     val selections = editor.collectSelections() ?: return false
-    if (logger.isDebugEnabled) {
-      logger.debug("Count of selection segments: ${selections.size}")
-      selections.values.forEachIndexed { index, vimSelection -> logger.debug("Caret $index: $vimSelection") }
-    }
+    logger.debug { "Count of selection segments: ${selections.size}" }
+    logger.debug { selections.values.joinToString("\n") { vimSelection -> "Caret: $vimSelection" } }
 
     val commandWrapper = VisualStartFinishWrapper(editor, cmd)
     commandWrapper.start()
@@ -182,7 +183,7 @@ sealed class VisualOperatorActionHandler : VimActionHandler.SingleExecution() {
       }
       else -> this.caretModel.allCarets.associateWith { caret ->
 
-        val subMode = CommandState.getInstance(this).subMode
+        val subMode = this.commandState.subMode
         VimSimpleSelection.createWithNative(
           caret.vimSelectionStart,
           caret.offset,
@@ -208,14 +209,12 @@ sealed class VisualOperatorActionHandler : VimActionHandler.SingleExecution() {
         } else null
         this@VisualStartFinishWrapper.visualChanges[it] = change
       }
-      if (logger.isDebugEnabled) {
-        visualChanges.values.forEachIndexed { index, visualChange -> logger.debug("Caret $index: $visualChange") }
-      }
+      logger.debug { visualChanges.values.joinToString("\n") { "Caret: $visualChanges" } }
 
       // If this is a mutli key change then exit visual now
       if (CommandFlags.FLAG_MULTIKEY_UNDO in cmd.flags || CommandFlags.FLAG_EXIT_VISUAL in cmd.flags) {
         logger.debug("Exit visual before command executing")
-        VimPlugin.getVisualMotion().exitVisual(editor)
+        editor.exitVisualMode()
       }
     }
 
@@ -224,11 +223,12 @@ sealed class VisualOperatorActionHandler : VimActionHandler.SingleExecution() {
 
       if (CommandFlags.FLAG_MULTIKEY_UNDO !in cmd.flags && CommandFlags.FLAG_EXPECT_MORE !in cmd.flags) {
         logger.debug("Not multikey undo - exit visual")
-        VimPlugin.getVisualMotion().exitVisual(editor)
+        editor.exitVisualMode()
       }
 
       if (res) {
-        CommandState.getInstance(editor).saveLastChangeCommand(cmd)
+        VimRepeater.saveLastChange(cmd)
+        VimRepeater.repeatHandler = false
         editor.vimForEachCaret { caret -> visualChanges[caret]?.let { caret.vimLastVisualOperatorRange = it } }
         editor.caretModel.allCarets.forEach { it.vimLastColumn = it.visualPosition.column }
       }

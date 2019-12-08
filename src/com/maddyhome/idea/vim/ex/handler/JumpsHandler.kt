@@ -28,7 +28,6 @@ import com.maddyhome.idea.vim.helper.StringHelper.toKeyNotation
 import kotlin.math.absoluteValue
 
 class JumpsHandler : CommandHandler.SingleExecution() {
-  override val names = commands("ju[mps]")
   override val argFlags = flags(RangeFlag.RANGE_OPTIONAL, ArgumentFlag.ARGUMENT_FORBIDDEN, Access.READ_ONLY)
   override fun execute(editor: Editor, context: DataContext, cmd: ExCommand): Boolean {
     val jumps = VimPlugin.getMark().jumps
@@ -47,10 +46,10 @@ class JumpsHandler : CommandHandler.SingleExecution() {
 
       text.append(" ")
       val vf = EditorHelper.getVirtualFile(editor)
-      if (vf != null && vf.path == jump.filename) {
+      if (vf != null && vf.path == jump.filepath) {
         text.append(toKeyNotation(stringToKeys(EditorHelper.getLineText(editor, jump.logicalLine).trim())))
       } else {
-        text.append(jump.filename)
+        text.append(jump.filepath)
       }
 
       text.append("\n")

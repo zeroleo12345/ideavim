@@ -29,6 +29,7 @@ import com.maddyhome.idea.vim.command.CommandState
 import com.maddyhome.idea.vim.common.TextRange
 import com.maddyhome.idea.vim.group.MotionGroup
 import com.maddyhome.idea.vim.group.visual.vimSetSelection
+import com.maddyhome.idea.vim.helper.endOffsetInclusive
 import com.maddyhome.idea.vim.helper.inVisualMode
 import com.maddyhome.idea.vim.helper.subMode
 import com.maddyhome.idea.vim.helper.vimSelectionStart
@@ -41,6 +42,7 @@ import com.maddyhome.idea.vim.helper.vimSelectionStart
  * This handler gets executed for each caret.
  */
 abstract class TextObjectActionHandler : EditorActionHandlerBase.ForEachCaret() {
+  final override val type: Command.Type = Command.Type.MOTION
   abstract fun getRange(editor: Editor, caret: Caret, context: DataContext, count: Int, rawCount: Int, argument: Argument?): TextRange?
   override fun execute(editor: Editor, caret: Caret, context: DataContext, cmd: Command): Boolean {
     if (!editor.inVisualMode) return true
@@ -48,16 +50,16 @@ abstract class TextObjectActionHandler : EditorActionHandlerBase.ForEachCaret() 
     val range = getRange(editor, caret, context, cmd.count, cmd.rawCount, cmd.argument) ?: return false
 
     val block = CommandFlags.FLAG_TEXT_BLOCK in cmd.flags
-    val newstart = if (block || caret.offset >= caret.vimSelectionStart) range.startOffset else range.endOffset
-    val newend = if (block || caret.offset >= caret.vimSelectionStart) range.endOffset else range.startOffset
+    val newstart = if (block || caret.offset >= caret.vimSelectionStart) range.startOffset else range.endOffsetInclusive
+    val newend = if (block || caret.offset >= caret.vimSelectionStart) range.endOffsetInclusive else range.startOffset
 
     if (caret.vimSelectionStart == caret.offset || block) {
       caret.vimSetSelection(newstart, newstart, false)
     }
 
-    if (CommandFlags.FLAG_MOT_LINEWISE in cmd.flags && CommandFlags.FLAG_VISUAL_CHARACTERWISE !in cmd.flags && editor.subMode != CommandState.SubMode.VISUAL_LINE) {
+    if (CommandFlags.FLAG_MOT_LINEWISE in cmd.flags && editor.subMode != CommandState.SubMode.VISUAL_LINE) {
       VimPlugin.getVisualMotion().toggleVisual(editor, 1, 0, CommandState.SubMode.VISUAL_LINE)
-    } else if ((CommandFlags.FLAG_MOT_LINEWISE !in cmd.flags || CommandFlags.FLAG_VISUAL_CHARACTERWISE in cmd.flags) && editor.subMode == CommandState.SubMode.VISUAL_LINE) {
+    } else if (CommandFlags.FLAG_MOT_LINEWISE !in cmd.flags && editor.subMode == CommandState.SubMode.VISUAL_LINE) {
       VimPlugin.getVisualMotion().toggleVisual(editor, 1, 0, CommandState.SubMode.VISUAL_CHARACTER)
     }
 

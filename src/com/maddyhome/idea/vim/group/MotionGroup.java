@@ -33,25 +33,21 @@ import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.VirtualFileSystem;
 import com.maddyhome.idea.vim.KeyHandler;
 import com.maddyhome.idea.vim.VimPlugin;
-import com.maddyhome.idea.vim.action.MotionEditorAction;
-import com.maddyhome.idea.vim.action.TextObjectAction;
-import com.maddyhome.idea.vim.command.Argument;
-import com.maddyhome.idea.vim.command.Command;
-import com.maddyhome.idea.vim.command.CommandFlags;
-import com.maddyhome.idea.vim.command.CommandState;
+import com.maddyhome.idea.vim.command.*;
 import com.maddyhome.idea.vim.common.Jump;
 import com.maddyhome.idea.vim.common.Mark;
 import com.maddyhome.idea.vim.common.TextRange;
 import com.maddyhome.idea.vim.ex.ExOutputModel;
+import com.maddyhome.idea.vim.group.visual.VimSelection;
 import com.maddyhome.idea.vim.group.visual.VisualGroupKt;
-import com.maddyhome.idea.vim.helper.CommandStateHelper;
-import com.maddyhome.idea.vim.helper.EditorHelper;
-import com.maddyhome.idea.vim.helper.SearchHelper;
-import com.maddyhome.idea.vim.helper.UserDataManager;
+import com.maddyhome.idea.vim.handler.MotionActionHandler;
+import com.maddyhome.idea.vim.handler.TextObjectActionHandler;
+import com.maddyhome.idea.vim.helper.*;
 import com.maddyhome.idea.vim.listener.VimListenerManager;
 import com.maddyhome.idea.vim.option.NumberOption;
 import com.maddyhome.idea.vim.option.OptionsManager;
 import com.maddyhome.idea.vim.ui.ExEntryPanel;
+import kotlin.Pair;
 import kotlin.ranges.IntProgression;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -59,6 +55,8 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.*;
 import java.io.File;
 import java.util.EnumSet;
+
+import static com.maddyhome.idea.vim.group.ChangeGroup.*;
 
 /**
  * This handles all motion related commands and marks
@@ -102,7 +100,6 @@ public class MotionGroup {
    * @param count      The count applied to the motion
    * @param rawCount   The actual count entered by the user
    * @param argument   Any argument needed by the motion
-   * @param incNewline True if to include newline
    * @return The motion's range
    */
   @Nullable
@@ -111,68 +108,83 @@ public class MotionGroup {
                                          DataContext context,
                                          int count,
                                          int rawCount,
-                                         @NotNull Argument argument,
-                                         boolean incNewline) {
-    final Command cmd = argument.getMotion();
-    if (cmd == null) {
-      return null;
+                                         @NotNull Argument argument) {
+    int start;
+    int end;
+    if (argument.getType() == Argument.Type.OFFSETS ) {
+      final VimSelection offsets = argument.getOffsets().get(caret);
+      if (offsets == null) return null;
+
+      final Pair<Integer, Integer> nativeStartAndEnd = offsets.getNativeStartAndEnd();
+      start = nativeStartAndEnd.getFirst();
+      end = nativeStartAndEnd.getSecond();
     }
-    // Normalize the counts between the command and the motion argument
-    int cnt = cmd.getCount() * count;
-    int raw = rawCount == 0 && cmd.getRawCount() == 0 ? 0 : cnt;
-    int start = 0;
-    int end = 0;
-    if (cmd.getAction() instanceof MotionEditorAction) {
-      MotionEditorAction action = (MotionEditorAction)cmd.getAction();
+    else {
+      final Command cmd = argument.getMotion();
+      // Normalize the counts between the command and the motion argument
+      int cnt = cmd.getCount() * count;
+      int raw = rawCount == 0 && cmd.getRawCount() == 0 ? 0 : cnt;
+      if (cmd.getAction() instanceof MotionActionHandler) {
+        MotionActionHandler action = (MotionActionHandler)cmd.getAction();
 
-      // This is where we are now
-      start = caret.getOffset();
+        // This is where we are now
+        start = caret.getOffset();
 
-      // Execute the motion (without moving the cursor) and get where we end
-      end = action.getOffset(editor, caret, context, cnt, raw, cmd.getArgument());
+        // Execute the motion (without moving the cursor) and get where we end
+        end = action.getHandlerOffset(editor, caret, context, cnt, raw, cmd.getArgument());
 
-      // Invalid motion
-      if (end == -1) {
-        return null;
+        // Invalid motion
+        if (end == -1) return null;
+
+        // If inclusive, add the last character to the range
+        if (action.getMotionType() == MotionType.INCLUSIVE &&
+            !cmd.getFlags().contains(CommandFlags.FLAG_MOT_LINEWISE)) {
+          end++;
+        }
       }
-    }
-    else if (cmd.getAction() instanceof TextObjectAction) {
-      TextObjectAction action = (TextObjectAction)cmd.getAction();
+      else if (cmd.getAction() instanceof TextObjectActionHandler) {
+        TextObjectActionHandler action = (TextObjectActionHandler)cmd.getAction();
 
-      TextRange range = action.getRange(editor, caret, context, cnt, raw, cmd.getArgument());
+        TextRange range = action.getRange(editor, caret, context, cnt, raw, cmd.getArgument());
 
-      if (range == null) {
-        return null;
+        if (range == null) return null;
+
+        start = range.getStartOffset();
+        end = range.getEndOffset();
+
+        if (cmd.getFlags().contains(CommandFlags.FLAG_MOT_LINEWISE)) end--;
+      } else {
+        throw new RuntimeException("Commands doesn't take " + cmd.getAction().getClass().getSimpleName() + " as an operator");
       }
 
-      start = range.getStartOffset();
-      end = range.getEndOffset();
-    }
-
-    // If we are a linewise motion we need to normalize the start and stop then move the start to the beginning
-    // of the line and move the end to the end of the line.
-    EnumSet<CommandFlags> flags = cmd.getFlags();
-    if (flags.contains(CommandFlags.FLAG_MOT_LINEWISE)) {
+      // Normalize the range
       if (start > end) {
         int t = start;
         start = end;
         end = t;
       }
 
-      start = EditorHelper.getLineStartForOffset(editor, start);
-      end = Math
-        .min(EditorHelper.getLineEndForOffset(editor, end) + (incNewline ? 1 : 0), EditorHelper.getFileSize(editor));
-    }
-    // If characterwise and inclusive, add the last character to the range
-    else if (flags.contains(CommandFlags.FLAG_MOT_INCLUSIVE)) {
-      end++;
+      // If we are a linewise motion we need to normalize the start and stop then move the start to the beginning
+      // of the line and move the end to the end of the line.
+      EnumSet<CommandFlags> flags = cmd.getFlags();
+      if (flags.contains(CommandFlags.FLAG_MOT_LINEWISE)) {
+        start = EditorHelper.getLineStartForOffset(editor, start);
+        end = Math.min(EditorHelper.getLineEndForOffset(editor, end) + 1, EditorHelper.getFileSize(editor, true));
+      }
     }
 
-    // Normalize the range
-    if (start > end) {
-      int t = start;
-      start = end;
-      end = t;
+    // This is a kludge for dw, dW, and d[w. Without this kludge, an extra newline is operated when it shouldn't be.
+    String text = editor.getDocument().getCharsSequence().subSequence(start, end).toString();
+    final int lastNewLine = text.lastIndexOf('\n');
+    if (lastNewLine > 0) {
+      String id = argument.getMotion().getAction().getId();
+      if (id.equals(VIM_MOTION_WORD_RIGHT) ||
+          id.equals(VIM_MOTION_BIG_WORD_RIGHT) ||
+          id.equals(VIM_MOTION_CAMEL_RIGHT)) {
+        if (!SearchHelper.anyNonWhitespace(editor, end, -1)) {
+          end = start + lastNewLine;
+        }
+      }
     }
 
     return new TextRange(start, end);
@@ -312,7 +324,7 @@ public class MotionGroup {
       VisualGroupKt.vimMoveSelectionToCaret(caret);
     }
     else {
-      VimPlugin.getVisualMotion().exitVisual(editor);
+      ModeHelper.exitVisualMode(editor);
     }
   }
 
@@ -331,9 +343,6 @@ public class MotionGroup {
   private VirtualFile markToVirtualFile(@NotNull Mark mark) {
     String protocol = mark.getProtocol();
     VirtualFileSystem fileSystem = VirtualFileManager.getInstance().getFileSystem(protocol);
-    if (mark.getFilename() == null) {
-      return null;
-    }
     return fileSystem.findFileByPath(mark.getFilename());
   }
 
@@ -757,7 +766,7 @@ public class MotionGroup {
       visualLine = EditorHelper.normalizeVisualLine(editor, visualLine + lines);
       EditorHelper.scrollVisualLineToTopOfScreen(editor, visualLine);
     }
-    else if (lines < 0) {
+    else {
       int visualLine = EditorHelper.getVisualLineAtBottomOfScreen(editor);
       visualLine = EditorHelper.normalizeVisualLine(editor, visualLine + lines);
       EditorHelper.scrollVisualLineToBottomOfScreen(editor, visualLine);
@@ -838,8 +847,8 @@ public class MotionGroup {
     }
 
     final LogicalPosition lp = new LogicalPosition(jump.getLogicalLine(), jump.getCol());
-    final String fileName = jump.getFilename();
-    if (!vf.getPath().equals(fileName) && fileName != null) {
+    final String fileName = jump.getFilepath();
+    if (!vf.getPath().equals(fileName)) {
       final VirtualFile newFile =
         LocalFileSystem.getInstance().findFileByPath(fileName.replace(File.separatorChar, '/'));
       if (newFile == null) {
@@ -1226,14 +1235,12 @@ public class MotionGroup {
   private void switchEditorTab(@Nullable EditorWindow editorWindow, int value, boolean absolute) {
     if (editorWindow != null) {
       final EditorTabbedContainer tabbedPane = editorWindow.getTabbedPane();
-      if (tabbedPane != null) {
-        if (absolute) {
-          tabbedPane.setSelectedIndex(value);
-        }
-        else {
-          int tabIndex = (value + tabbedPane.getSelectedIndex()) % tabbedPane.getTabCount();
-          tabbedPane.setSelectedIndex(tabIndex < 0 ? tabIndex + tabbedPane.getTabCount() : tabIndex);
-        }
+      if (absolute) {
+        tabbedPane.setSelectedIndex(value);
+      }
+      else {
+        int tabIndex = (value + tabbedPane.getSelectedIndex()) % tabbedPane.getTabCount();
+        tabbedPane.setSelectedIndex(tabIndex < 0 ? tabIndex + tabbedPane.getTabCount() : tabIndex);
       }
     }
   }
@@ -1256,6 +1263,7 @@ public class MotionGroup {
       return -1;
     }
     else {
+      boolean savedColumn = true;
       int col = UserDataManager.getVimLastColumn(caret);
       int line = EditorHelper.normalizeVisualLine(editor, pos.line + count);
       final CommandState.Mode mode = CommandStateHelper.getMode(editor);
@@ -1263,15 +1271,26 @@ public class MotionGroup {
 
       if (lastColumnCurrentLine != pos.column) {
         col = pos.column;
+        savedColumn = false;
       }
-      final int normalizedCol = EditorHelper
-        .normalizeVisualColumn(editor, line, col, CommandStateHelper.isEndAllowed(CommandStateHelper.getMode(editor)));
-      VisualPosition newPos = new VisualPosition(line, normalizedCol);
 
-      if (editor.visualToLogicalPosition(newPos).line == newPos.line && editor.visualToLogicalPosition(newPos).column != newPos.column) {
-        // There is some inconsistency with parameter hints (they are counted as one column)
-        return editor.logicalPositionToOffset(new LogicalPosition(line, normalizedCol));
-      }
+      // Inline hints are counted as 1 in visual position. So, to keep the correct column
+      //   we decrease the column by the number of inline hints
+      int curLineStartOffset = editor.getDocument().getLineStartOffset(logicalPosition.line);
+      int curInlineElements = editor.getInlayModel().getInlineElementsInRange(curLineStartOffset, caret.getOffset()).size();
+
+      VisualPosition newVisualPos = new VisualPosition(line, col);
+      int newOffset = EditorHelper.visualPositionToOffset(editor, newVisualPos);
+      int lineStartNewOffset = editor.getDocument().getLineStartOffset(editor.visualToLogicalPosition(newVisualPos).line);
+      int newInlineElements = editor.getInlayModel().getInlineElementsInRange(lineStartNewOffset, newOffset).size();
+
+      if (!savedColumn) col -= curInlineElements;
+
+      col = EditorHelper
+        .normalizeVisualColumn(editor, line, col, CommandStateHelper.isEndAllowed(CommandStateHelper.getMode(editor)));
+      col += newInlineElements;
+      VisualPosition newPos = new VisualPosition(line, col);
+
       return EditorHelper.visualPositionToOffset(editor, newPos);
     }
   }
@@ -1307,7 +1326,7 @@ public class MotionGroup {
       final Editor editor = ((TextEditor)fileEditor).getEditor();
       ExOutputModel.getInstance(editor).clear();
       if (CommandState.getInstance(editor).getMode() == CommandState.Mode.VISUAL) {
-        VimPlugin.getVisualMotion().exitVisual(editor);
+        ModeHelper.exitVisualMode(editor);
         KeyHandler.getInstance().reset(editor);
       }
     }

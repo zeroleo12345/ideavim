@@ -18,6 +18,7 @@
 
 package org.jetbrains.plugins.ideavim;
 
+import com.intellij.ide.bookmarks.BookmarkManager;
 import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.ide.highlighter.XmlFileType;
 import com.intellij.openapi.application.PathManager;
@@ -44,6 +45,8 @@ import com.maddyhome.idea.vim.ex.ExOutputModel;
 import com.maddyhome.idea.vim.ex.vimscript.VimScriptGlobalEnvironment;
 import com.maddyhome.idea.vim.group.visual.VimVisualTimer;
 import com.maddyhome.idea.vim.helper.*;
+import com.maddyhome.idea.vim.listener.SelectionVimListenerSuppressor;
+import com.maddyhome.idea.vim.listener.VimListenerSuppressor;
 import com.maddyhome.idea.vim.option.OptionsManager;
 import com.maddyhome.idea.vim.option.ToggleOption;
 import com.maddyhome.idea.vim.ui.ExEntryPanel;
@@ -55,6 +58,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -97,7 +101,11 @@ public abstract class VimTestCase extends UsefulTestCase {
     if (swingTimer != null) {
       swingTimer.stop();
     }
-    myFixture.tearDown();
+    BookmarkManager bookmarkManager = BookmarkManager.getInstance(myFixture.getProject());
+    bookmarkManager.getValidBookmarks().forEach(bookmarkManager::removeBookmark);
+    try(VimListenerSuppressor.Locked ignored = SelectionVimListenerSuppressor.INSTANCE.lock()) {
+      myFixture.tearDown();
+    }
     myFixture = null;
     ExEntryPanel.getInstance().deactivate(false);
     VimScriptGlobalEnvironment.getInstance().getVariables().clear();
@@ -110,7 +118,7 @@ public abstract class VimTestCase extends UsefulTestCase {
   protected void enableExtensions(@NotNull String... extensionNames) {
     for (String name : extensionNames) {
       ToggleOption option = (ToggleOption) OptionsManager.INSTANCE.getOption(name);
-      option.set();
+      Objects.requireNonNull(option).set();
     }
   }
 
@@ -193,12 +201,15 @@ public abstract class VimTestCase extends UsefulTestCase {
   public void assertPosition(int line, int column) {
     final List<Caret> carets = myFixture.getEditor().getCaretModel().getAllCarets();
     assertEquals("Wrong amount of carets", 1, carets.size());
-    final LogicalPosition position = carets.get(0).getLogicalPosition();
-    assertEquals(position, new LogicalPosition(line, column));
+    final LogicalPosition actualPosition = carets.get(0).getLogicalPosition();
+    assertEquals(new LogicalPosition(line, column), actualPosition);
   }
 
   public void assertOffset(int... expectedOffsets) {
     final List<Caret> carets = myFixture.getEditor().getCaretModel().getAllCarets();
+    if (expectedOffsets.length == 2 && carets.size() == 1) {
+      assertEquals("Wrong amount of carets. Did you mean to use assertPosition?", expectedOffsets.length, carets.size());
+    }
     assertEquals("Wrong amount of carets", expectedOffsets.length, carets.size());
     for (int i = 0; i < expectedOffsets.length; i++) {
       assertEquals(expectedOffsets[i], carets.get(i).getOffset());

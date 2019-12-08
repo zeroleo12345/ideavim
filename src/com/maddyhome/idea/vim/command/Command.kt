@@ -18,8 +18,6 @@
 
 package com.maddyhome.idea.vim.command
 
-import com.intellij.openapi.actionSystem.AnAction
-import com.intellij.openapi.editor.actionSystem.EditorAction
 import com.maddyhome.idea.vim.handler.EditorActionHandlerBase
 import java.util.*
 import javax.swing.KeyStroke
@@ -30,19 +28,14 @@ import javax.swing.KeyStroke
  */
 data class Command(
   var rawCount: Int,
-  val actionId: String?,
-  var action: AnAction?,
+  var action: EditorActionHandlerBase,
   val type: Type,
-  var flags: EnumSet<CommandFlags>
+  var flags: EnumSet<CommandFlags>,
+  var keys: List<KeyStroke>
 ) {
 
   init {
-    if (action is EditorAction) {
-      val handler = (action as EditorAction).handler
-      if (handler is EditorActionHandlerBase) {
-        handler.process(this)
-      }
-    }
+    action.process(this)
   }
 
   var count: Int
@@ -51,7 +44,6 @@ data class Command(
       rawCount = value
     }
 
-  var keys: List<KeyStroke> = emptyList()
   var argument: Argument? = null
 
   enum class Type {
@@ -80,6 +72,7 @@ data class Command(
      */
     COPY,
     PASTE,
+    // TODO REMOVE?
     RESET,
     /**
      * Represents commands that select the register.

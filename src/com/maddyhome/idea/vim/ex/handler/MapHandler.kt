@@ -22,7 +22,14 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.command.MappingMode
-import com.maddyhome.idea.vim.ex.*
+import com.maddyhome.idea.vim.ex.CommandHandler
+import com.maddyhome.idea.vim.ex.CommandHandlerFlags
+import com.maddyhome.idea.vim.ex.CommandName
+import com.maddyhome.idea.vim.ex.ComplicatedNameExCommand
+import com.maddyhome.idea.vim.ex.ExCommand
+import com.maddyhome.idea.vim.ex.ExException
+import com.maddyhome.idea.vim.ex.commands
+import com.maddyhome.idea.vim.ex.flags
 import com.maddyhome.idea.vim.ex.handler.MapHandler.SpecialArgument.EXPR
 import com.maddyhome.idea.vim.ex.handler.MapHandler.SpecialArgument.SCRIPT
 import com.maddyhome.idea.vim.ex.vimscript.VimScriptCommandHandler
@@ -33,7 +40,7 @@ import javax.swing.KeyStroke
 /**
  * @author vlan
  */
-class MapHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler {
+class MapHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler, ComplicatedNameExCommand {
   override val names: Array<CommandName> = COMMAND_NAMES
   override val argFlags: CommandHandlerFlags = flags(RangeFlag.RANGE_FORBIDDEN, ArgumentFlag.ARGUMENT_OPTIONAL, Access.READ_ONLY)
 
@@ -106,27 +113,26 @@ class MapHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler {
                                  val toKeys: List<KeyStroke>)
 
   private class CommandInfo(val prefix: String, suffix: String, val mappingModes: Set<MappingMode>, val isRecursive: Boolean) {
-    val command =
-      if (suffix.isBlank()) {
-        prefix
-      } else "$prefix[$suffix]"
+    val command = if (suffix.isBlank()) prefix else "$prefix[$suffix]"
   }
 
   companion object {
     private const val CTRL_V = '\u0016'
     private val COMMAND_INFOS = arrayOf(
-      // TODO: Support xmap, smap, map!, lmap
+      // TODO: Support smap, map!, lmap
       CommandInfo("map", "", MappingMode.NVO, true),
       CommandInfo("nm", "ap", MappingMode.N, true),
       CommandInfo("vm", "ap", MappingMode.V, true),
+      CommandInfo("xm", "ap", MappingMode.X, true),
       CommandInfo("om", "ap", MappingMode.O, true),
       CommandInfo("im", "ap", MappingMode.I, true),
       CommandInfo("cm", "ap", MappingMode.C, true),
 
-      // TODO: Support xnoremap, snoremap, noremap!, lnoremap
+      // TODO: Support snoremap, noremap!, lnoremap
       CommandInfo("no", "remap", MappingMode.NVO, false),
       CommandInfo("nn", "oremap", MappingMode.N, false),
       CommandInfo("vn", "oremap", MappingMode.V, false),
+      CommandInfo("xn", "oremap", MappingMode.X, false),
       CommandInfo("ono", "remap", MappingMode.O, false),
       CommandInfo("ino", "remap", MappingMode.I, false),
       CommandInfo("cno", "remap", MappingMode.C, false)
@@ -171,20 +177,19 @@ class MapHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler {
   private fun getFirstBarSeparatedCommand(input: String): String {
     val inputBuilder = StringBuilder()
     var escape = false
-    for (i in 0 until input.length) {
-      val c = input[i]
+    for (element in input) {
       if (escape) {
         escape = false
-        if (c != '|') {
+        if (element != '|') {
           inputBuilder.append('\\')
         }
-        inputBuilder.append(c)
-      } else if (c == '\\' || c == CTRL_V) {
+        inputBuilder.append(element)
+      } else if (element == '\\' || element == CTRL_V) {
         escape = true
-      } else if (c == '|') {
+      } else if (element == '|') {
         break
       } else {
-        inputBuilder.append(c)
+        inputBuilder.append(element)
       }
     }
     if (input.endsWith("\\")) {

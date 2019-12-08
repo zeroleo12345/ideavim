@@ -17,63 +17,54 @@
  */
 package com.maddyhome.idea.vim;
 
-import com.intellij.openapi.actionSystem.AnAction;
-import com.intellij.openapi.actionSystem.ex.ActionManagerEx;
-import com.maddyhome.idea.vim.action.VimCommandActionBase;
-import com.maddyhome.idea.vim.command.Command;
-import com.maddyhome.idea.vim.command.CommandFlags;
-import com.maddyhome.idea.vim.command.MappingMode;
+import com.intellij.openapi.extensions.ExtensionPointName;
 import com.maddyhome.idea.vim.group.KeyGroup;
+import com.maddyhome.idea.vim.handler.ActionBeanClass;
+import com.maddyhome.idea.vim.handler.EditorActionHandlerBase;
 import com.maddyhome.idea.vim.key.Shortcut;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.event.KeyEvent;
-import java.util.EnumSet;
 
-class RegisterActions {
+public class RegisterActions {
+
+  public static final ExtensionPointName<ActionBeanClass> VIM_ACTIONS_EP =
+    ExtensionPointName.create("IdeaVIM.vimAction");
+  private static boolean actionsRegistered = false;
+
   /**
    * Register all the key/action mappings for the plugin.
    */
   static void registerActions() {
+    if (actionsRegistered) return;
+    actionsRegistered = true;
+
     registerVimCommandActions();
-    registerSystemMappings();
+    registerEmptyShortcuts();
+  }
+
+  @Nullable
+  public static EditorActionHandlerBase findAction(@NotNull String id) {
+    return VIM_ACTIONS_EP.extensions().filter(vimActionBean -> vimActionBean.getActionId().equals(id)).findFirst()
+      .map(ActionBeanClass::getAction).orElse(null);
+  }
+
+  @NotNull
+  public static EditorActionHandlerBase findActionOrDie(@NotNull String id) {
+    EditorActionHandlerBase action = findAction(id);
+    if (action == null) throw new RuntimeException("Action " + id + " is not registered");
+    return action;
   }
 
   private static void registerVimCommandActions() {
-    final ActionManagerEx manager = ActionManagerEx.getInstanceEx();
-    for (String actionId : manager.getPluginActions(VimPlugin.getPluginId())) {
-      final AnAction action = manager.getAction(actionId);
-      if (action instanceof VimCommandActionBase) {
-        VimPlugin.getKey().registerCommandAction((VimCommandActionBase)action, actionId);
-      }
-    }
+    KeyGroup parser = VimPlugin.getKey();
+    VIM_ACTIONS_EP.extensions().forEach(parser::registerCommandAction);
   }
 
-  private static void registerSystemMappings() {
+  private static void registerEmptyShortcuts() {
     final KeyGroup parser = VimPlugin.getKey();
-    parser.registerAction(MappingMode.NV, "CollapseAllRegions", Command.Type.OTHER_READONLY, new Shortcut("zM"));
-    parser.registerAction(MappingMode.NV, "CollapseRegion", Command.Type.OTHER_READONLY, new Shortcut("zc"));
-    parser.registerAction(MappingMode.NV, "CollapseRegionRecursively", Command.Type.OTHER_READONLY, new Shortcut("zC"));
-    parser.registerAction(MappingMode.NV, "ExpandAllRegions", Command.Type.OTHER_READONLY, new Shortcut("zR"));
-    parser.registerAction(MappingMode.NV, "ExpandRegion", Command.Type.OTHER_READONLY, new Shortcut("zo"));
-    parser.registerAction(MappingMode.NV, "ExpandRegionRecursively", Command.Type.OTHER_READONLY, new Shortcut("zO"));
-
-    parser.registerAction(MappingMode.I, "EditorBackSpace", Command.Type.INSERT, EnumSet.noneOf(CommandFlags.class),
-                          new Shortcut[]{new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_MASK)),
-                            new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_BACK_SPACE, 0))});
-    parser.registerAction(MappingMode.I, "EditorDelete", Command.Type.INSERT, EnumSet.of(CommandFlags.FLAG_SAVE_STROKE),
-                          new Shortcut[]{new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0))});
-    parser.registerAction(MappingMode.I, "EditorDown", Command.Type.INSERT, EnumSet.of(CommandFlags.FLAG_CLEAR_STROKES),
-                          new Shortcut[]{new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0)),
-                            new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_KP_DOWN, 0))});
-    parser.registerAction(MappingMode.I, "EditorTab", Command.Type.INSERT, EnumSet.of(CommandFlags.FLAG_SAVE_STROKE),
-                          new Shortcut[]{new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_I, KeyEvent.CTRL_MASK)),
-                            new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0))});
-    parser.registerAction(MappingMode.I, "EditorUp", Command.Type.INSERT, EnumSet.of(CommandFlags.FLAG_CLEAR_STROKES),
-                          new Shortcut[]{new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0)),
-                            new Shortcut(KeyStroke.getKeyStroke(KeyEvent.VK_KP_UP, 0))});
-
-    parser.registerAction(MappingMode.N, "QuickJavaDoc", Command.Type.OTHER_READONLY, new Shortcut('K'));
 
     // Digraph shortcuts are handled directly by KeyHandler#handleKey, so they don't have an action. But we still need to
     // register the shortcuts or the editor will swallow them. Technically, the shortcuts will be registered as part of

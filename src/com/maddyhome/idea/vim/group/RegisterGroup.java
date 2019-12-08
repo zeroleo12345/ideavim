@@ -23,10 +23,11 @@ import com.intellij.codeInsight.editorActions.CopyPastePostProcessor;
 import com.intellij.codeInsight.editorActions.CopyPastePreProcessor;
 import com.intellij.codeInsight.editorActions.TextBlockTransferable;
 import com.intellij.codeInsight.editorActions.TextBlockTransferableData;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.CaretStateTransferableData;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.richcopy.view.HtmlTransferableData;
+import com.intellij.openapi.editor.richcopy.view.RtfTransferableData;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
@@ -49,6 +50,7 @@ import com.maddyhome.idea.vim.command.CommandState;
 import com.maddyhome.idea.vim.command.SelectionType;
 import com.maddyhome.idea.vim.common.Register;
 import com.maddyhome.idea.vim.common.TextRange;
+import com.maddyhome.idea.vim.handler.EditorActionHandlerBase;
 import com.maddyhome.idea.vim.helper.EditorHelper;
 import com.maddyhome.idea.vim.helper.StringHelper;
 import com.maddyhome.idea.vim.option.ListOption;
@@ -87,20 +89,18 @@ public class RegisterGroup {
 
   public RegisterGroup() {
     final ListOption clipboardOption = OptionsManager.INSTANCE.getClipboard();
-    if (clipboardOption != null) {
-      clipboardOption.addOptionChangeListener(event -> {
-        if (clipboardOption.contains("unnamed")) {
-          defaultRegister = '*';
-        }
-        else if (clipboardOption.contains("unnamedplus")) {
-          defaultRegister = '+';
-        }
-        else {
-          defaultRegister = '"';
-        }
-        lastRegister = defaultRegister;
-      });
-    }
+    clipboardOption.addOptionChangeListener(event -> {
+      if (clipboardOption.contains("unnamed")) {
+        defaultRegister = '*';
+      }
+      else if (clipboardOption.contains("unnamedplus")) {
+        defaultRegister = '+';
+      }
+      else {
+        defaultRegister = '"';
+      }
+      lastRegister = defaultRegister;
+    });
   }
 
   /**
@@ -267,6 +267,12 @@ public class RegisterGroup {
       }
     });
     transferableDatas.add(new CaretStateTransferableData(new int[]{0}, new int[]{text.length()}));
+
+    // These data provided by {@link com.intellij.openapi.editor.richcopy.TextWithMarkupProcessor} doesn't work with
+    //   IdeaVim and I don't see a way to fix it
+    // See https://youtrack.jetbrains.com/issue/VIM-1785
+    // See https://youtrack.jetbrains.com/issue/VIM-1731
+    transferableDatas.removeIf(it -> (it instanceof RtfTransferableData) || (it instanceof HtmlTransferableData));
     return transferableDatas;
   }
 
@@ -293,14 +299,12 @@ public class RegisterGroup {
       Argument argument = currentCommand.getArgument();
       if (argument != null) {
         Command motionCommand = argument.getMotion();
-        if (motionCommand != null) {
-          AnAction action = motionCommand.getAction();
-          return action instanceof MotionPercentOrMatchAction || action instanceof MotionSentencePreviousStartAction
-            || action instanceof MotionSentenceNextStartAction || action instanceof MotionGotoFileMarkAction
-            || action instanceof SearchEntryFwdAction || action instanceof SearchEntryRevAction
-            || action instanceof SearchAgainNextAction || action instanceof SearchAgainPreviousAction
-            || action instanceof MotionParagraphNextAction || action instanceof MotionParagraphPreviousAction;
-        }
+        EditorActionHandlerBase action = motionCommand.getAction();
+        return action instanceof MotionPercentOrMatchAction || action instanceof MotionSentencePreviousStartAction
+          || action instanceof MotionSentenceNextStartAction || action instanceof MotionGotoFileMarkAction
+          || action instanceof SearchEntryFwdAction || action instanceof SearchEntryRevAction
+          || action instanceof SearchAgainNextAction || action instanceof SearchAgainPreviousAction
+          || action instanceof MotionParagraphNextAction || action instanceof MotionParagraphPreviousAction;
       }
     }
 

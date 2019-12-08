@@ -27,8 +27,14 @@ import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.CommandFlags
+import com.maddyhome.idea.vim.command.MotionType
 import com.maddyhome.idea.vim.group.MotionGroup
-import com.maddyhome.idea.vim.helper.*
+import com.maddyhome.idea.vim.helper.EditorHelper
+import com.maddyhome.idea.vim.helper.inBlockSubMode
+import com.maddyhome.idea.vim.helper.inVisualMode
+import com.maddyhome.idea.vim.helper.isEndAllowed
+import com.maddyhome.idea.vim.helper.mode
+import com.maddyhome.idea.vim.helper.vimSelectionStart
 
 /**
  * @author Alex Plate
@@ -108,6 +114,17 @@ sealed class MotionActionHandler : EditorActionHandlerBase.SingleExecution() {
      * The method executes only once it there is block selection.
      */
     open fun postMove(editor: Editor, context: DataContext, cmd: Command) = Unit
+  }
+
+  abstract val motionType: MotionType
+
+  final override val type: Command.Type = Command.Type.MOTION
+
+  fun getHandlerOffset(editor: Editor, caret: Caret, context: DataContext, count: Int, rawCount: Int, argument: Argument?): Int {
+    return when (this) {
+      is SingleExecution -> getOffset(editor, context, count, rawCount, argument)
+      is ForEachCaret -> getOffset(editor, caret, context, count, rawCount, argument)
+    }
   }
 
   final override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean {

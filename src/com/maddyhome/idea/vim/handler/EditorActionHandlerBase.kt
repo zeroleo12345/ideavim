@@ -18,15 +18,22 @@
 
 package com.maddyhome.idea.vim.handler
 
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.editor.actionSystem.EditorActionHandler
+import com.intellij.openapi.editor.actionSystem.CaretSpecificDataContext
 import com.maddyhome.idea.vim.VimPlugin
+import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.Command
-import com.maddyhome.idea.vim.command.CommandState
+import com.maddyhome.idea.vim.command.CommandFlags
+import com.maddyhome.idea.vim.helper.StringHelper
+import com.maddyhome.idea.vim.helper.commandState
 import com.maddyhome.idea.vim.helper.getTopLevelEditor
+import com.maddyhome.idea.vim.helper.noneOfEnum
+import java.util.*
+import javax.swing.KeyStroke
 
 /**
  * Structure of handlers
@@ -52,8 +59,6 @@ import com.maddyhome.idea.vim.helper.getTopLevelEditor
  *
  *  SpecialKeyHandlers are not presented here because these handlers are created to a limited set of commands and they
  *    are already implemented
- *
- * See also VimCommands.kt for commands structure
  */
 
 /**
@@ -68,7 +73,7 @@ sealed class VimActionHandler(myRunForEachCaret: Boolean) : EditorActionHandlerB
     abstract fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean
   }
 
-  override fun baseExecute(editor: Editor, caret: Caret?, context: DataContext, cmd: Command): Boolean {
+  final override fun baseExecute(editor: Editor, caret: Caret?, context: DataContext, cmd: Command): Boolean {
     return when (this) {
       is ForEachCaret -> caret == null || execute(editor, caret, context, cmd)
       is SingleExecution -> execute(editor, context, cmd)
@@ -76,7 +81,22 @@ sealed class VimActionHandler(myRunForEachCaret: Boolean) : EditorActionHandlerB
   }
 }
 
-sealed class EditorActionHandlerBase(myRunForEachCaret: Boolean) : EditorActionHandler(myRunForEachCaret) {
+sealed class EditorActionHandlerBase(private val myRunForEachCaret: Boolean) {
+  val id: String = getActionId(this::class.java.name)
+
+  abstract val type: Command.Type
+
+  open val argumentType: Argument.Type? = null
+
+  /**
+   * Returns various binary flags for the command.
+   *
+   * These legacy flags will be refactored in future releases.
+   *
+   * @see com.maddyhome.idea.vim.command.Command
+   */
+  open val flags: EnumSet<CommandFlags> = noneOfEnum()
+
 
   abstract class ForEachCaret : EditorActionHandlerBase(true) {
     abstract fun execute(editor: Editor, caret: Caret, context: DataContext, cmd: Command): Boolean
@@ -97,26 +117,48 @@ sealed class EditorActionHandlerBase(myRunForEachCaret: Boolean) : EditorActionH
 
   abstract fun baseExecute(editor: Editor, caret: Caret?, context: DataContext, cmd: Command): Boolean
 
-  public final override fun doExecute(_editor: Editor, caret: Caret?, context: DataContext) {
+  fun execute(editor: Editor, context: DataContext) {
+    val hostEditor: Editor = CommonDataKeys.HOST_EDITOR.getData(context) ?: editor
+    val action = { caret: Caret -> doExecute(editor, caret, context) }
+    if (myRunForEachCaret) {
+      hostEditor.caretModel.runForEachCaret(action)
+    } else {
+      action(editor.caretModel.currentCaret)
+    }
+  }
+
+  private fun doExecute(_editor: Editor, caret: Caret, context: DataContext) {
     if (!VimPlugin.isEnabled()) return
 
     val editor = _editor.getTopLevelEditor()
     logger.debug("Execute command with handler: " + this.javaClass.name)
 
-    val state = CommandState.getInstance(editor)
-    val cmd = state.command ?: run {
+    val cmd = editor.commandState.command ?: run {
       VimPlugin.indicateError()
       return
     }
 
-    if (!baseExecute(editor, caret, context, cmd)) VimPlugin.indicateError()
+    if (!baseExecute(editor, caret, CaretSpecificDataContext(context, caret), cmd)) VimPlugin.indicateError()
   }
 
   open fun process(cmd: Command) {
     // No-op
   }
 
-  private companion object {
+  companion object {
     private val logger = Logger.getInstance(EditorActionHandlerBase::class.java.name)
+
+    fun parseKeysSet(keyStrings: List<String>) = keyStrings.map { StringHelper.parseKeys(it) }.toSet()
+
+    @JvmStatic
+    fun parseKeysSet(vararg keyStrings: String): Set<List<KeyStroke>> = List(keyStrings.size) {
+      StringHelper.parseKeys(keyStrings[it])
+    }.toSet()
+
+    fun getActionId(classFullName: String): String {
+      return classFullName
+        .takeLastWhile { it != '.' }
+        .let { if (it.startsWith("Vim", true)) it else "Vim$it" }
+    }
   }
 }

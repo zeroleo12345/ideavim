@@ -45,6 +45,7 @@ import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.util.ObjectUtils;
 import com.maddyhome.idea.vim.EventFacade;
 import com.maddyhome.idea.vim.KeyHandler;
+import com.maddyhome.idea.vim.RegisterActions;
 import com.maddyhome.idea.vim.VimPlugin;
 import com.maddyhome.idea.vim.command.*;
 import com.maddyhome.idea.vim.common.IndentConfig;
@@ -54,6 +55,7 @@ import com.maddyhome.idea.vim.ex.LineRange;
 import com.maddyhome.idea.vim.group.visual.VimSelection;
 import com.maddyhome.idea.vim.group.visual.VisualGroupKt;
 import com.maddyhome.idea.vim.group.visual.VisualModeHelperKt;
+import com.maddyhome.idea.vim.handler.EditorActionHandlerBase;
 import com.maddyhome.idea.vim.helper.*;
 import com.maddyhome.idea.vim.listener.SelectionVimListenerSuppressor;
 import com.maddyhome.idea.vim.listener.VimListenerSuppressor;
@@ -66,6 +68,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.event.KeyEvent;
+import java.math.BigInteger;
 import java.util.*;
 
 /**
@@ -75,12 +78,12 @@ public class ChangeGroup {
 
   private static final int MAX_REPEAT_CHARS_COUNT = 10000;
 
-  private static final String VIM_MOTION_BIG_WORD_RIGHT = "VimMotionBigWordRight";
-  private static final String VIM_MOTION_WORD_RIGHT = "VimMotionWordRight";
-  private static final String VIM_MOTION_CAMEL_RIGHT = "VimMotionCamelRight";
-  private static final String VIM_MOTION_WORD_END_RIGHT = "VimMotionWordEndRight";
-  private static final String VIM_MOTION_BIG_WORD_END_RIGHT = "VimMotionBigWordEndRight";
-  private static final String VIM_MOTION_CAMEL_END_RIGHT = "VimMotionCamelEndRight";
+  public static final String VIM_MOTION_BIG_WORD_RIGHT = "VimMotionBigWordRightAction";
+  public static final String VIM_MOTION_WORD_RIGHT = "VimMotionWordRightAction";
+  public static final String VIM_MOTION_CAMEL_RIGHT = "VimMotionCamelRightAction";
+  private static final String VIM_MOTION_WORD_END_RIGHT = "VimMotionWordEndRightAction";
+  private static final String VIM_MOTION_BIG_WORD_END_RIGHT = "VimMotionBigWordEndRightAction";
+  private static final String VIM_MOTION_CAMEL_END_RIGHT = "VimMotionCamelEndRightAction";
 
   @Nullable private Command lastInsert;
 
@@ -239,7 +242,8 @@ public class ChangeGroup {
 
   private void runEnterAction(Editor editor, @NotNull DataContext context) {
     CommandState state = CommandState.getInstance(editor);
-    if (state.getMode() != CommandState.Mode.REPEAT) {
+    if (!state.isDotRepeatInProgress()) {
+      // While repeating the enter action has been already executed because `initInsert` repeats the input
       final ActionManager actionManager = ActionManager.getInstance();
       final AnAction action = actionManager.getAction("EditorEnter");
       if (action != null) {
@@ -276,7 +280,7 @@ public class ChangeGroup {
   public void insertPreviousInsert(@NotNull Editor editor, @NotNull DataContext context, boolean exit) {
     repeatInsertText(editor, context, 1);
     if (exit) {
-      processEscape(editor, context);
+      ModeHelper.exitInsertMode(editor, context);
     }
   }
 
@@ -379,11 +383,12 @@ public class ChangeGroup {
     }
 
     final Command cmd = state.getCommand();
-    if (cmd != null && state.getMode() == CommandState.Mode.REPEAT) {
+    if (cmd != null && state.isDotRepeatInProgress()) {
+      state.pushState(mode, CommandState.SubMode.NONE, MappingMode.INSERT);
       if (mode == CommandState.Mode.REPLACE) {
         setInsertEditorState(editor, false);
       }
-      if (cmd.getFlags().contains(CommandFlags.FLAG_NO_REPEAT)) {
+      if (cmd.getFlags().contains(CommandFlags.FLAG_NO_REPEAT_INSERT)) {
         repeatInsert(editor, context, 1, false);
       }
       else {
@@ -392,6 +397,7 @@ public class ChangeGroup {
       if (mode == CommandState.Mode.REPLACE) {
         setInsertEditorState(editor, true);
       }
+      state.popState();
     }
     else {
       lastInsert = cmd;
@@ -439,37 +445,6 @@ public class ChangeGroup {
     }
   }
 
-  @Nullable
-  private static TextRange getDeleteMotionRange(@NotNull Editor editor,
-                                                @NotNull Caret caret,
-                                                @NotNull DataContext context,
-                                                int count,
-                                                int rawCount,
-                                                @NotNull Argument argument) {
-    TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument, true);
-    // This is a kludge for dw, dW, and d[w. Without this kludge, an extra newline is deleted when it shouldn't be.
-    if (range != null) {
-      String text =
-        editor.getDocument().getCharsSequence().subSequence(range.getStartOffset(), range.getEndOffset()).toString();
-      final int lastNewLine = text.lastIndexOf('\n');
-      if (lastNewLine > 0) {
-        final Command motion = argument.getMotion();
-        if (motion != null) {
-          final String id = ActionManager.getInstance().getId(motion.getAction());
-          if (id.equals(VIM_MOTION_WORD_RIGHT) ||
-              id.equals(VIM_MOTION_BIG_WORD_RIGHT) ||
-              id.equals(VIM_MOTION_CAMEL_RIGHT)) {
-            if (!SearchHelper.anyNonWhitespace(editor, range.getEndOffset(), -1)) {
-              final int start = range.getStartOffset();
-              range = new TextRange(start, start + lastNewLine);
-            }
-          }
-        }
-      }
-    }
-    return range;
-  }
-
   /**
    * This repeats the previous insert count times
    *
@@ -489,6 +464,10 @@ public class ChangeGroup {
             KeyHandler.executeAction((AnAction)lastStroke, context);
             strokes.add(lastStroke);
           }
+          else if (lastStroke instanceof EditorActionHandlerBase) {
+            KeyHandler.executeVimAction(editor, (EditorActionHandlerBase)lastStroke, context);
+            strokes.add(lastStroke);
+          }
           else if (lastStroke instanceof char[]) {
             final char[] chars = (char[])lastStroke;
             insertText(editor, caret, new String(chars));
@@ -501,16 +480,15 @@ public class ChangeGroup {
   /**
    * Terminate insert/replace mode after the user presses Escape or Ctrl-C
    *
-   * @param editor  The editor that was being edited
-   * @param context The data context
+   * DEPRECATED. Please, don't use this function directly. Use ModeHelper.exitInsert
    */
-  public void processEscape(@NotNull Editor editor, @NotNull DataContext context) {
+  public void processEscape(@NotNull Editor editor, @Nullable DataContext context) {
     int cnt = lastInsert != null ? lastInsert.getCount() : 0;
     if (CommandState.getInstance(editor).getMode() == CommandState.Mode.REPLACE) {
       setInsertEditorState(editor, true);
     }
 
-    if (lastInsert != null && (lastInsert.getFlags().contains(CommandFlags.FLAG_NO_REPEAT))) {
+    if (lastInsert != null && (lastInsert.getFlags().contains(CommandFlags.FLAG_NO_REPEAT_INSERT))) {
       cnt = 1;
     }
 
@@ -521,7 +499,9 @@ public class ChangeGroup {
 
     lastStrokes = new ArrayList<>(strokes);
 
-    repeatInsert(editor, context, cnt == 0 ? 0 : cnt - 1, true);
+    if (context != null) {
+      repeatInsert(editor, context, cnt == 0 ? 0 : cnt - 1, true);
+    }
 
     final MarkGroup markGroup = VimPlugin.getMark();
     final int offset = editor.getCaretModel().getPrimaryCaret().getOffset();
@@ -841,10 +821,11 @@ public class ChangeGroup {
                                         @NotNull final DataContext context,
                                         @NotNull final KeyStroke key) {
     boolean res;
-    try (VimListenerSuppressor ignored = SelectionVimListenerSuppressor.INSTANCE.lock()) {
+    try (VimListenerSuppressor.Locked ignored = SelectionVimListenerSuppressor.INSTANCE.lock()) {
       res = processKey(editor, context, key);
 
-      VimPlugin.getVisualMotion().exitSelectModeAndResetKeyHandler(editor, false);
+      ModeHelper.exitSelectMode(editor, false);
+      KeyHandler.getInstance().reset(editor);
 
       if (isPrintableChar(key.getKeyChar()) || activeTemplateWithLeftRightMotion(editor, key)) {
         VimPlugin.getChange().insertBeforeCursor(editor, context);
@@ -1073,52 +1054,34 @@ public class ChangeGroup {
     return true;
   }
 
-  /**
-   * Delete all text moved over by the supplied motion command argument.
-   *
-   * @param editor   The editor to delete the text from
-   * @param caret    The caret on which the motion appears to be performed
-   * @param context  The data context
-   * @param count    The number of times to repeat the deletion
-   * @param rawCount The actual count entered by the user
-   * @param argument The motion command
-   * @param isChange if from a change
-   * @return true if able to delete the text, false if not
-   */
-  public boolean deleteMotion(@NotNull Editor editor,
-                              @NotNull Caret caret,
-                              @NotNull DataContext context,
-                              int count,
-                              int rawCount,
-                              @NotNull final Argument argument,
-                              boolean isChange) {
-    final TextRange range = getDeleteMotionRange(editor, caret, context, count, rawCount, argument);
-    if (range == null) {
-      return (EditorHelper.getFileSize(editor) == 0);
-    }
+  @Nullable
+  public Pair<TextRange, SelectionType> getDeleteRangeAndType(@NotNull Editor editor,
+                                                              @NotNull Caret caret,
+                                                              @NotNull DataContext context,
+                                                              int count,
+                                                              int rawCount,
+                                                              @NotNull final Argument argument,
+                                                              boolean isChange) {
+    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument);
+    if (range == null) return null;
 
     // Delete motion commands that are not linewise become linewise if all the following are true:
     // 1) The range is across multiple lines
     // 2) There is only whitespace before the start of the range
     // 3) There is only whitespace after the end of the range
+    SelectionType type = SelectionType.fromCommandFlags(argument.getMotion().getFlags());
     final Command motion = argument.getMotion();
-    if (motion == null) {
-      return false;
-    }
-    EnumSet<CommandFlags> flags = motion.getFlags().clone();
     if (!isChange && !motion.getFlags().contains(CommandFlags.FLAG_MOT_LINEWISE)) {
       LogicalPosition start = editor.offsetToLogicalPosition(range.getStartOffset());
       LogicalPosition end = editor.offsetToLogicalPosition(range.getEndOffset());
       if (start.line != end.line) {
         if (!SearchHelper.anyNonWhitespace(editor, range.getStartOffset(), -1) &&
             !SearchHelper.anyNonWhitespace(editor, range.getEndOffset(), 1)) {
-          flags.remove(CommandFlags.FLAG_MOT_EXCLUSIVE);
-          flags.remove(CommandFlags.FLAG_MOT_INCLUSIVE);
-          flags.add(CommandFlags.FLAG_MOT_LINEWISE);
+          type = SelectionType.LINE_WISE;
         }
       }
     }
-    return deleteRange(editor, caret, range, SelectionType.fromCommandFlags(flags), isChange);
+    return new Pair<>(range, type);
   }
 
   /**
@@ -1140,12 +1103,15 @@ public class ChangeGroup {
     final boolean res = deleteText(editor, range, type);
     final int size = EditorHelper.getFileSize(editor);
     if (res) {
-      final int pos;
+      int pos;
       if (caret.getOffset() > size) {
         pos = size - 1;
       }
       else {
         pos = EditorHelper.normalizeOffset(editor, range.getStartOffset(), isChange);
+        if (type == SelectionType.LINE_WISE) {
+          pos = VimPlugin.getMotion().moveCaretToLineStart(editor, editor.offsetToLogicalPosition(pos).line);
+        }
       }
       MotionGroup.moveCaret(editor, caret, pos);
     }
@@ -1244,43 +1210,43 @@ public class ChangeGroup {
                               @NotNull Argument argument) {
     // Vim treats cw as ce and cW as cE if cursor is on a non-blank character
     final Command motion = argument.getMotion();
-    if (motion == null) {
-      return false;
-    }
-    String id = ActionManager.getInstance().getId(motion.getAction());
+
+    String id = motion.getAction().getId();
     boolean kludge = false;
     boolean bigWord = id.equals(VIM_MOTION_BIG_WORD_RIGHT);
     final CharSequence chars = editor.getDocument().getCharsSequence();
     final int offset = caret.getOffset();
-    final CharacterHelper.CharacterType charType = CharacterHelper.charType(chars.charAt(offset), bigWord);
-    if (EditorHelper.getFileSize(editor) > 0 && charType != CharacterHelper.CharacterType.WHITESPACE) {
-      final boolean lastWordChar = offset > EditorHelper.getFileSize(editor) ||
-                                   CharacterHelper.charType(chars.charAt(offset + 1), bigWord) != charType;
-      final ImmutableSet<String> wordMotions =
-        ImmutableSet.of(VIM_MOTION_WORD_RIGHT, VIM_MOTION_BIG_WORD_RIGHT, VIM_MOTION_CAMEL_RIGHT);
-      if (wordMotions.contains(id) && lastWordChar && motion.getCount() == 1) {
-        final boolean res = deleteCharacter(editor, caret, 1, true);
-        if (res) {
-          UserDataManager.setVimChangeActionSwitchMode(editor, CommandState.Mode.INSERT);
+    if (EditorHelper.getFileSize(editor) > 0) {
+      final CharacterHelper.CharacterType charType = CharacterHelper.charType(chars.charAt(offset), bigWord);
+      if (charType != CharacterHelper.CharacterType.WHITESPACE) {
+        final boolean lastWordChar = offset > EditorHelper.getFileSize(editor) ||
+                                     CharacterHelper.charType(chars.charAt(offset + 1), bigWord) != charType;
+        final ImmutableSet<String> wordMotions =
+          ImmutableSet.of(VIM_MOTION_WORD_RIGHT, VIM_MOTION_BIG_WORD_RIGHT, VIM_MOTION_CAMEL_RIGHT);
+        if (wordMotions.contains(id) && lastWordChar && motion.getCount() == 1) {
+          final boolean res = deleteCharacter(editor, caret, 1, true);
+          if (res) {
+            UserDataManager.setVimChangeActionSwitchMode(editor, CommandState.Mode.INSERT);
+          }
+          return res;
         }
-        return res;
-      }
-      switch (id) {
-        case VIM_MOTION_WORD_RIGHT:
-          kludge = true;
-          motion.setAction(ActionManager.getInstance().getAction(VIM_MOTION_WORD_END_RIGHT));
-          motion.setFlags(EnumSet.of(CommandFlags.FLAG_MOT_INCLUSIVE));
-          break;
-        case VIM_MOTION_BIG_WORD_RIGHT:
-          kludge = true;
-          motion.setAction(ActionManager.getInstance().getAction(VIM_MOTION_BIG_WORD_END_RIGHT));
-          motion.setFlags(EnumSet.of(CommandFlags.FLAG_MOT_INCLUSIVE));
-          break;
-        case VIM_MOTION_CAMEL_RIGHT:
-          kludge = true;
-          motion.setAction(ActionManager.getInstance().getAction(VIM_MOTION_CAMEL_END_RIGHT));
-          motion.setFlags(EnumSet.of(CommandFlags.FLAG_MOT_INCLUSIVE));
-          break;
+        switch (id) {
+          case VIM_MOTION_WORD_RIGHT:
+            kludge = true;
+            motion.setAction(RegisterActions.findActionOrDie(VIM_MOTION_WORD_END_RIGHT));
+
+            break;
+          case VIM_MOTION_BIG_WORD_RIGHT:
+            kludge = true;
+            motion.setAction(RegisterActions.findActionOrDie(VIM_MOTION_BIG_WORD_END_RIGHT));
+
+            break;
+          case VIM_MOTION_CAMEL_RIGHT:
+            kludge = true;
+            motion.setAction(RegisterActions.findActionOrDie(VIM_MOTION_CAMEL_END_RIGHT));
+
+            break;
+        }
       }
     }
 
@@ -1305,17 +1271,16 @@ public class ChangeGroup {
           motion.setCount(motion.getCount() - 1);
         }
         else {
-          motion.setFlags(EnumSet.of(CommandFlags.FLAG_MOT_EXCLUSIVE));
+          motion.setFlags(EnumSet.noneOf(CommandFlags.class));
         }
       }
     }
 
-    boolean res = deleteMotion(editor, caret, context, count, rawCount, argument, true);
-    if (res) {
-      UserDataManager.setVimChangeActionSwitchMode(editor, CommandState.Mode.INSERT);
-    }
+    Pair<TextRange, SelectionType> deleteRangeAndType =
+      getDeleteRangeAndType(editor, caret, context, count, rawCount, argument, true);
+    if (deleteRangeAndType == null) return false;
 
-    return res;
+    return changeRange(editor, caret, deleteRangeAndType.getFirst(), deleteRangeAndType.getSecond(), context);
   }
 
   /**
@@ -1531,23 +1496,46 @@ public class ChangeGroup {
                                   int rawCount,
                                   char type,
                                   @NotNull Argument argument) {
-    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument, true);
+    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument);
     return range != null && changeCaseRange(editor, caret, range, type);
   }
 
-  public void reformatCode(@NotNull Editor editor, @NotNull VimSelection range) {
+  public boolean reformatCodeMotion(@NotNull Editor editor,
+                             @NotNull Caret caret,
+                             DataContext context,
+                             int count,
+                             int rawCount,
+                             @NotNull Argument argument) {
+    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument);
+    return range != null && reformatCodeRange(editor, caret, range);
+  }
+
+  public void reformatCodeSelection(@NotNull Editor editor, @NotNull Caret caret, @NotNull VimSelection range) {
+    final TextRange textRange = range.toVimTextRange(true);
+    reformatCodeRange(editor, caret, textRange);
+  }
+
+  private boolean reformatCodeRange(@NotNull Editor editor, @NotNull Caret caret, @NotNull TextRange range) {
+    int[] starts = range.getStartOffsets();
+    int[] ends = range.getEndOffsets();
+    final int firstLine = editor.offsetToLogicalPosition(range.getStartOffset()).line;
+    for (int i = ends.length - 1; i >= 0; i--) {
+      final int startOffset = EditorHelper.getLineStartForOffset(editor, starts[i]);
+      final int endOffset = EditorHelper.getLineEndForOffset(editor, ends[i] - (startOffset == ends[i] ? 0 : 1));
+      reformatCode(editor, startOffset, endOffset);
+    }
+    final int newOffset = VimPlugin.getMotion().moveCaretToLineStartSkipLeading(editor, firstLine);
+    MotionGroup.moveCaret(editor, caret, newOffset);
+    return true;
+  }
+
+  private void reformatCode(@NotNull Editor editor, int start, int end) {
     final Project project = editor.getProject();
     if (project == null) return;
     final PsiFile file = PsiUtilBase.getPsiFileInEditor(editor, project);
     if (file == null) return;
-
-    final Pair<Integer, Integer> nativeStartAndEnd = range.getNativeStartAndEnd();
-    final Pair<Integer, Integer> sortedNativeStartAndEnd = HelperKt.sort(nativeStartAndEnd.getFirst(), nativeStartAndEnd.getSecond());
-    final int startOffset = EditorHelper.getLineStartForOffset(editor, sortedNativeStartAndEnd.getFirst());
-    final int endOffset = EditorHelper.getLineEndForOffset(editor, sortedNativeStartAndEnd.getSecond());
-
     final com.intellij.openapi.util.TextRange textRange =
-      com.intellij.openapi.util.TextRange.create(startOffset, endOffset);
+      com.intellij.openapi.util.TextRange.create(start, end);
     CodeStyleManager.getInstance(project).reformatText(file, Collections.singletonList(textRange));
   }
 
@@ -1557,9 +1545,9 @@ public class ChangeGroup {
                                int count,
                                int rawCount,
                                @NotNull Argument argument) {
-    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument, false);
+    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument);
     if (range != null) {
-      autoIndentRange(editor, caret, context, range);
+      autoIndentRange(editor, caret, context, new TextRange(range.getStartOffset(), HelperKt.getEndOffsetInclusive(range)));
     }
   }
 
@@ -1612,7 +1600,7 @@ public class ChangeGroup {
                            int rawCount,
                            @NotNull Argument argument,
                            int dir) {
-    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument, false);
+    final TextRange range = MotionGroup.getMotionRange(editor, caret, context, count, rawCount, argument);
     if (range != null) {
       indentRange(editor, caret, context, range, 1, dir);
     }
@@ -1719,6 +1707,15 @@ public class ChangeGroup {
   /**
    * Delete text from the document. This will fail if being asked to store the deleted text into a read-only
    * register.
+   *
+   * End offset of range is exclusive
+   *
+   * delete new TextRange(1, 5)
+   * 0123456789
+   * Hello, xyz
+   * .||||....
+   *
+   * end <= text.length
    *
    * @param editor The editor to delete from
    * @param range  The range to delete
@@ -1934,9 +1931,10 @@ public class ChangeGroup {
         }
       }
 
-      int num = (int)Long.parseLong(text.substring(2), 16);
-      num += count;
-      number = Integer.toHexString(num);
+
+      BigInteger num = new BigInteger(text.substring(2), 16);
+      num = num.add(BigInteger.valueOf(count));
+      number = num.toString(16);
       number = StringsKt.padStart(number, text.length() - 2, '0');
 
       if (!lastLower) {
@@ -1946,9 +1944,9 @@ public class ChangeGroup {
       number = text.substring(0, 2) + number;
     }
     else if (octal && text.startsWith("0") && text.length() > 1) {
-      int num = (int)Long.parseLong(text, 8);
-      num += count;
-      number = Integer.toOctalString(num);
+      BigInteger num = new BigInteger(text, 8);
+      num = num.add(BigInteger.valueOf(count));
+      number = num.toString(8);
       number = "0" + StringsKt.padStart(number, text.length() - 1, '0');
     }
     else if (alpha && Character.isLetter(ch)) {
@@ -1965,9 +1963,9 @@ public class ChangeGroup {
         len--;
       }
 
-      int num = Integer.parseInt(text);
-      num += count;
-      number = Integer.toString(num);
+      BigInteger num = new BigInteger(text);
+      num = num.add(BigInteger.valueOf(count));
+      number = num.toString();
 
       if (!octal && pad) {
         boolean neg = false;
@@ -2031,12 +2029,12 @@ public class ChangeGroup {
     }
 
     @NotNull
-    private List<AnAction> getAdjustCaretActions(@NotNull DocumentEvent e) {
+    private List<EditorActionHandlerBase> getAdjustCaretActions(@NotNull DocumentEvent e) {
       final int delta = e.getOffset() - oldOffset;
       if (oldOffset >= 0 && delta != 0) {
-        final List<AnAction> positionCaretActions = new ArrayList<>();
-        final String motionName = delta < 0 ? "VimMotionLeft" : "VimMotionRight";
-        final AnAction action = ActionManager.getInstance().getAction(motionName);
+        final List<EditorActionHandlerBase> positionCaretActions = new ArrayList<>();
+        final String motionName = delta < 0 ? "VimMotionLeftAction" : "VimMotionRightAction";
+        final EditorActionHandlerBase action = RegisterActions.findAction(motionName);
         final int count = Math.abs(delta);
         for (int i = 0; i < count; i++) {
           positionCaretActions.add(action);

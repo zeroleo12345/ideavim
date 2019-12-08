@@ -22,7 +22,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.maddyhome.idea.vim.VimPlugin;
 import com.maddyhome.idea.vim.helper.UserDataManager;
-import com.maddyhome.idea.vim.key.ParentNode;
+import com.maddyhome.idea.vim.key.CommandPartNode;
 import com.maddyhome.idea.vim.option.NumberOption;
 import com.maddyhome.idea.vim.option.OptionsManager;
 import org.jetbrains.annotations.Contract;
@@ -40,24 +40,21 @@ import java.util.stream.Collectors;
 public class CommandState {
   private static final int DEFAULT_TIMEOUT_LENGTH = 1000;
 
-  @Nullable private static Command ourLastChange = null;
-  private char myLastChangeRegister;
-
   @NotNull private final Stack<State> myStates = new Stack<>();
   @NotNull private final State myDefaultState = new State(Mode.COMMAND, SubMode.NONE, MappingMode.NORMAL);
   @Nullable private Command myCommand;
-  @NotNull private ParentNode myCurrentNode = VimPlugin.getKey().getKeyRoot(getMappingMode());
+  @NotNull private CommandPartNode myCurrentNode = VimPlugin.getKey().getKeyRoot(getMappingMode());
   @NotNull private final List<KeyStroke> myMappingKeys = new ArrayList<>();
   @NotNull private final Timer myMappingTimer;
   private EnumSet<CommandFlags> myFlags = EnumSet.noneOf(CommandFlags.class);
   private boolean myIsRecording = false;
   private static Logger logger = Logger.getInstance(CommandState.class.getName());
+  private boolean dotRepeatInProgress = false;
 
   private CommandState() {
     myMappingTimer = new Timer(DEFAULT_TIMEOUT_LENGTH, null);
     myMappingTimer.setRepeats(false);
     myStates.push(new State(Mode.COMMAND, SubMode.NONE, MappingMode.NORMAL));
-    myLastChangeRegister = VimPlugin.getRegister().getDefaultRegister();
   }
 
   @Contract("null -> new")
@@ -238,35 +235,6 @@ public class CommandState {
     return currentState().getMappingMode();
   }
 
-  /**
-   * Gets the last command that performed a change
-   *
-   * @return The last change command, null if there hasn't been a change yet
-   */
-  @Nullable
-  public Command getLastChangeCommand() {
-    return ourLastChange;
-  }
-
-  /**
-   * Gets the register used by the last saved change command
-   *
-   * @return The register key
-   */
-  public char getLastChangeRegister() {
-    return myLastChangeRegister;
-  }
-
-  /**
-   * Saves the last command that performed a change. It also preserves the register the command worked with.
-   *
-   * @param cmd The change command
-   */
-  public void saveLastChangeCommand(Command cmd) {
-    ourLastChange = cmd;
-    myLastChangeRegister = VimPlugin.getRegister().getCurrentRegister();
-  }
-
   public boolean isRecording() {
     return myIsRecording;
   }
@@ -277,11 +245,11 @@ public class CommandState {
   }
 
   @NotNull
-  public ParentNode getCurrentNode() {
+  public CommandPartNode getCurrentNode() {
     return myCurrentNode;
   }
 
-  public void setCurrentNode(@NotNull ParentNode currentNode) {
+  public void setCurrentNode(@NotNull CommandPartNode currentNode) {
     this.myCurrentNode = currentNode;
   }
 
@@ -315,8 +283,16 @@ public class CommandState {
     VimPlugin.showMode(msg.toString());
   }
 
+  public boolean isDotRepeatInProgress() {
+    return dotRepeatInProgress;
+  }
+
+  public void setDotRepeatInProgress(boolean dotRepeatInProgress) {
+    this.dotRepeatInProgress = dotRepeatInProgress;
+  }
+
   public enum Mode {
-    COMMAND, INSERT, REPLACE, REPEAT, VISUAL, SELECT, EX_ENTRY
+    COMMAND, INSERT, REPLACE, VISUAL, SELECT, CMD_LINE
   }
 
   public enum SubMode {

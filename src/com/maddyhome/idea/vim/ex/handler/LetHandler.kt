@@ -30,7 +30,6 @@ import java.util.regex.Pattern
  * @author vlan
  */
 class LetHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler {
-  override val names = commands("let")
   override val argFlags = flags(RangeFlag.RANGE_FORBIDDEN, ArgumentFlag.ARGUMENT_OPTIONAL, Access.READ_ONLY)
 
   @Throws(ExException::class)
@@ -66,6 +65,6 @@ class LetHandler : CommandHandler.SingleExecution(), VimScriptCommandHandler {
   }
 
   companion object {
-    private val SIMPLE_ASSIGNMENT = Pattern.compile("([A-Za-z_][A-Za-z_0-9]*)[ \\t]*=[ \\t]*(.*)")
+    private val SIMPLE_ASSIGNMENT = Pattern.compile("((?:[gswtblav]:)?[A-Za-z_][A-Za-z_0-9]*)[ \\t]*=[ \\t]*(.*)")
   }
 }

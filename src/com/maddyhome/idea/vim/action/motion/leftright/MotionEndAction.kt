@@ -22,51 +22,40 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.MotionEditorAction
 import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.Command
-import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
+import com.maddyhome.idea.vim.command.MotionType
 import com.maddyhome.idea.vim.group.MotionGroup
 import com.maddyhome.idea.vim.handler.NonShiftedSpecialKeyHandler
-import com.maddyhome.idea.vim.helper.enumSetOf
 import com.maddyhome.idea.vim.helper.inInsertMode
 import com.maddyhome.idea.vim.helper.inSelectMode
 import com.maddyhome.idea.vim.helper.inVisualMode
 import com.maddyhome.idea.vim.helper.vimLastColumn
 import com.maddyhome.idea.vim.option.OptionsManager
-import java.util.*
-import javax.swing.KeyStroke
 
-class MotionEndAction : MotionEditorAction() {
-  override fun makeActionHandler() = object : NonShiftedSpecialKeyHandler() {
-    override fun offset(editor: Editor, caret: Caret, context: DataContext, count: Int,
-                        rawCount: Int, argument: Argument?): Int {
-      var allow = false
-      if (editor.inInsertMode) {
+class MotionEndAction : NonShiftedSpecialKeyHandler() {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
+
+  override fun offset(editor: Editor, caret: Caret, context: DataContext, count: Int,
+                      rawCount: Int, argument: Argument?): Int {
+    var allow = false
+    if (editor.inInsertMode) {
+      allow = true
+    } else if (editor.inVisualMode || editor.inSelectMode) {
+      val opt = OptionsManager.selection
+      if (opt.value != "old") {
         allow = true
-      } else if (editor.inVisualMode || editor.inSelectMode) {
-        val opt = OptionsManager.selection
-        if (opt.value != "old") {
-          allow = true
-        }
       }
-
-      return VimPlugin.getMotion().moveCaretToLineEndOffset(editor, caret, count - 1, allow)
     }
 
-    override fun preMove(editor: Editor, caret: Caret, context: DataContext, cmd: Command) {
-      caret.vimLastColumn = MotionGroup.LAST_COLUMN
-    }
-
-    override fun postMove(editor: Editor, caret: Caret, context: DataContext, cmd: Command) {
-      caret.vimLastColumn = MotionGroup.LAST_COLUMN
-    }
+    return VimPlugin.getMotion().moveCaretToLineEndOffset(editor, caret, count - 1, allow)
   }
 
-  override val mappingModes: MutableSet<MappingMode> = MappingMode.NVOS
+  override fun preMove(editor: Editor, caret: Caret, context: DataContext, cmd: Command) {
+    caret.vimLastColumn = MotionGroup.LAST_COLUMN
+  }
 
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("<End>")
-
-  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_EXCLUSIVE)
+  override fun postMove(editor: Editor, caret: Caret, context: DataContext, cmd: Command) {
+    caret.vimLastColumn = MotionGroup.LAST_COLUMN
+  }
 }

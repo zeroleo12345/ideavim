@@ -21,10 +21,9 @@ package com.maddyhome.idea.vim.action.motion.scroll
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.VimCommandAction
+import com.maddyhome.idea.vim.action.ComplicatedKeysAction
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
 import com.maddyhome.idea.vim.handler.VimActionHandler
 import com.maddyhome.idea.vim.helper.enumSetOf
 import java.awt.event.KeyEvent
@@ -32,18 +31,16 @@ import java.util.*
 import javax.swing.KeyStroke
 
 
-class MotionScrollPageUpAction : VimCommandAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.NVO
-
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("<C-B>", "<PageUp>")
+class MotionScrollPageUpAction : VimActionHandler.SingleExecution() {
 
   override val type: Command.Type = Command.Type.OTHER_READONLY
 
-  override fun makeActionHandler(): VimActionHandler = MotionScrollPageUpActionHandler
+  override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean {
+    return VimPlugin.getMotion().scrollFullPage(editor, -cmd.count)
+  }
 }
 
-class MotionScrollPageUpInsertModeAction : VimCommandAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.I
+class MotionScrollPageUpInsertModeAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
 
   override val keyStrokesSet: Set<List<KeyStroke>> = setOf(
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0)),
@@ -57,10 +54,6 @@ class MotionScrollPageUpInsertModeAction : VimCommandAction() {
 
   override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_CLEAR_STROKES)
 
-  override fun makeActionHandler(): VimActionHandler = MotionScrollPageUpActionHandler
-}
-
-private object MotionScrollPageUpActionHandler : VimActionHandler.SingleExecution() {
   override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean {
     return VimPlugin.getMotion().scrollFullPage(editor, -cmd.count)
   }

@@ -10,11 +10,17 @@
   </a>
   <span>2019.1 Tests</span>
 </div>
+<div>
+  <a href="https://teamcity.jetbrains.com/viewType.html?buildTypeId=IdeaVim_TestsForIntelliJ20192&guest=1">
+    <img src="https://teamcity.jetbrains.com/app/rest/builds/buildType:(id:IdeaVim_TestsForIntelliJ20192)/statusIcon.svg?guest=1"/>
+  </a>
+  <span>2019.2 Tests</span>
+</div>
 
 
 ### Where to Start
 
-In order to contribute to IdeaVim, you should have some understanding of Java or [Kotlin](https://kotlinlang.org/).
+In order to contribute to IdeaVim, you should have some understanding of [Kotlin](https://kotlinlang.org/) or Java.
 
 See also these docs on the IntelliJ API:
 

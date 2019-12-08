@@ -325,4 +325,27 @@ public class MapCommandTest extends VimTestCase {
     typeText(parseKeys(",fa!<Esc>"));
     myFixture.checkResult("Hello!\n");
   }
+
+  public void testIntersectingCommands() {
+    configureByText("123<caret>4567890");
+    typeText(commandToKeys("map ds h"));
+    typeText(commandToKeys("map I 3l"));
+    typeText(parseKeys("dI"));
+    myFixture.checkResult("123<caret>7890");
+  }
+
+  public void testIncompleteMapping() {
+    configureByText("123<caret>4567890");
+    typeText(commandToKeys("map <Plug>(Hi)l lll"));
+    typeText(commandToKeys("map I <Plug>(Hi)"));
+    typeText(parseKeys("Ih"));
+    myFixture.checkResult("12<caret>34567890");
+  }
+
+  public void testIntersectingCommands2() {
+    configureByText("123<caret>4567890");
+    typeText(commandToKeys("map as x"));
+    typeText(parseKeys("gas"));
+    myFixture.checkResult("123<caret>567890");
+  }
 }

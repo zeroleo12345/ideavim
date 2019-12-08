@@ -22,31 +22,23 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.TextObjectAction
 import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
 import com.maddyhome.idea.vim.common.TextRange
 import com.maddyhome.idea.vim.handler.TextObjectActionHandler
 import com.maddyhome.idea.vim.helper.enumSetOf
 import java.util.*
-import javax.swing.KeyStroke
 
-class MotionInnerBlockDoubleQuoteAction : TextObjectAction() {
-  override fun makeActionHandler(): TextObjectActionHandler = object : TextObjectActionHandler() {
-    override fun getRange(editor: Editor,
-                          caret: Caret,
-                          context: DataContext,
-                          count: Int,
-                          rawCount: Int,
-                          argument: Argument?): TextRange? {
-      return VimPlugin.getMotion().getBlockQuoteRange(editor, caret, '"', false)
-    }
+class MotionInnerBlockDoubleQuoteAction : TextObjectActionHandler() {
+
+  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_CHARACTERWISE, CommandFlags.FLAG_TEXT_BLOCK)
+
+  override fun getRange(editor: Editor,
+                        caret: Caret,
+                        context: DataContext,
+                        count: Int,
+                        rawCount: Int,
+                        argument: Argument?): TextRange? {
+    return VimPlugin.getMotion().getBlockQuoteRange(editor, caret, '"', false)
   }
-
-  override val mappingModes: Set<MappingMode> = MappingMode.VO
-
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("i\"")
-
-  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_CHARACTERWISE, CommandFlags.FLAG_MOT_INCLUSIVE, CommandFlags.FLAG_TEXT_BLOCK)
 }

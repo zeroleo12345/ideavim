@@ -18,7 +18,6 @@
 
 package com.maddyhome.idea.vim.group.visual
 
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.LogicalPosition
@@ -30,28 +29,29 @@ import com.maddyhome.idea.vim.command.MappingMode
 import com.maddyhome.idea.vim.command.SelectionType
 import com.maddyhome.idea.vim.common.TextRange
 import com.maddyhome.idea.vim.group.MotionGroup
-import com.maddyhome.idea.vim.helper.*
-import com.maddyhome.idea.vim.listener.SelectionVimListenerSuppressor
-import com.maddyhome.idea.vim.listener.VimListenerManager
+import com.maddyhome.idea.vim.helper.EditorHelper
+import com.maddyhome.idea.vim.helper.commandState
+import com.maddyhome.idea.vim.helper.exitVisualMode
+import com.maddyhome.idea.vim.helper.inVisualMode
+import com.maddyhome.idea.vim.helper.subMode
+import com.maddyhome.idea.vim.helper.vimForEachCaret
+import com.maddyhome.idea.vim.helper.vimLastColumn
+import com.maddyhome.idea.vim.helper.vimLastSelectionType
+import com.maddyhome.idea.vim.helper.vimLastVisualOperatorRange
+import com.maddyhome.idea.vim.helper.vimSelectionStart
 import com.maddyhome.idea.vim.option.OptionsManager
-import com.maddyhome.idea.vim.option.SelectModeOptionData
 
 /**
  * @author Alex Plate
  */
 class VisualMotionGroup {
-  companion object {
-    val logger = Logger.getInstance(VisualMotionGroup::class.java)
-  }
-
   fun selectPreviousVisualMode(editor: Editor): Boolean {
     val lastSelectionType = editor.vimLastSelectionType ?: return false
     val visualMarks = VimPlugin.getMark().getVisualSelectionMarks(editor) ?: return false
 
     editor.caretModel.removeSecondaryCarets()
 
-    CommandState.getInstance(editor)
-      .pushState(CommandState.Mode.VISUAL, lastSelectionType.toSubMode(), MappingMode.VISUAL)
+    editor.commandState.pushState(CommandState.Mode.VISUAL, lastSelectionType.toSubMode(), MappingMode.VISUAL)
 
     val primaryCaret = editor.caretModel.primaryCaret
     primaryCaret.vimSetSelection(visualMarks.startOffset, visualMarks.endOffset, true)
@@ -105,87 +105,6 @@ class VisualMotionGroup {
     return true
   }
 
-  fun controlNonVimSelectionChange(editor: Editor, selectionSource: VimListenerManager.SelectionSource = VimListenerManager.SelectionSource.OTHER) {
-    VimVisualTimer.singleTask(editor.caretModel.allCarets.any(Caret::hasSelection), editor.mode) {
-      logger.info("Adjust non-vim selection. Source: $selectionSource")
-      if (editor.caretModel.allCarets.any(Caret::hasSelection)) {
-        val commandState = CommandState.getInstance(editor)
-        logger.info("Some carets have selection. State before adjustment: ${commandState.toSimpleString()}")
-        while (commandState.mode != CommandState.Mode.COMMAND) {
-          commandState.popState()
-        }
-        val autodetectedMode = autodetectVisualMode(editor)
-        val selectMode = OptionsManager.selectmode
-        when {
-          editor.isOneLineMode -> {
-            logger.info("Enter select mode. Reason: one line mode")
-            enterSelectMode(editor, autodetectedMode)
-          }
-          selectionSource == VimListenerManager.SelectionSource.MOUSE && SelectModeOptionData.mouse in selectMode -> {
-            logger.info("Enter select mode. Selection source is mouse and selectMode option has mouse")
-            enterSelectMode(editor, autodetectedMode)
-          }
-          editor.isTemplateActive() && SelectModeOptionData.template in selectMode -> {
-            logger.info("Enter select mode. Template is active and selectMode has template")
-            enterSelectMode(editor, autodetectedMode)
-          }
-          selectionSource == VimListenerManager.SelectionSource.OTHER && SelectModeOptionData.refactoring in selectMode -> {
-            logger.info("Enter select mode. Selection source is OTHER and selectMode has refactoring")
-            enterSelectMode(editor, autodetectedMode)
-          }
-          else -> {
-            logger.info("Enter visual mode")
-            enterVisualMode(editor, autodetectedMode)
-          }
-        }
-        KeyHandler.getInstance().reset(editor)
-      } else {
-        val commandState = CommandState.getInstance(editor)
-        logger.info("None of carets have selection. State before adjustment: ${commandState.toSimpleString()}")
-        exitVisual(editor)
-        exitSelectModeAndResetKeyHandler(editor, true)
-
-        val templateActive = editor.isTemplateActive()
-        if (templateActive && editor.mode == CommandState.Mode.COMMAND) {
-          VimPlugin.getChange().insertBeforeCursor(editor, EditorDataContext(editor))
-        }
-        updateCaretState(editor)
-        KeyHandler.getInstance().reset(editor)
-      }
-      logger.info("${editor.mode} is enabled")
-    }
-  }
-
-  // TODO: 2019-07-30 This method should be used for [controlNonVimSelectionChange]
-  fun predictMode(editor: Editor, selectionSource: VimListenerManager.SelectionSource): CommandState.Mode {
-    if (editor.caretModel.allCarets.any(Caret::hasSelection)) {
-      val selectMode = OptionsManager.selectmode
-      return when {
-        editor.isOneLineMode -> {
-          CommandState.Mode.SELECT
-        }
-        selectionSource == VimListenerManager.SelectionSource.MOUSE && SelectModeOptionData.mouse in selectMode -> {
-          CommandState.Mode.SELECT
-        }
-        editor.isTemplateActive() && SelectModeOptionData.template in selectMode -> {
-          CommandState.Mode.SELECT
-        }
-        selectionSource == VimListenerManager.SelectionSource.OTHER && SelectModeOptionData.refactoring in selectMode -> {
-          CommandState.Mode.SELECT
-        }
-        else -> {
-          CommandState.Mode.VISUAL
-        }
-      }
-    } else {
-      val templateActive = editor.isTemplateActive()
-      if (templateActive && editor.mode == CommandState.Mode.COMMAND || editor.mode == CommandState.Mode.INSERT) {
-        return CommandState.Mode.INSERT
-      }
-      return CommandState.Mode.COMMAND
-    }
-  }
-
   //=============================== ENTER VISUAL and SELECT MODE ==============================================
 
   /**
@@ -201,7 +120,7 @@ class VisualMotionGroup {
       if (rawCount > 0) {
         val primarySubMode = editor.caretModel.primaryCaret.vimLastVisualOperatorRange?.type?.toSubMode()
           ?: subMode
-        CommandState.getInstance(editor).pushState(CommandState.Mode.VISUAL, primarySubMode, MappingMode.VISUAL)
+        editor.commandState.pushState(CommandState.Mode.VISUAL, primarySubMode, MappingMode.VISUAL)
 
         editor.vimForEachCaret {
           val range = it.vimLastVisualOperatorRange ?: VisualChange.default(subMode)
@@ -211,7 +130,7 @@ class VisualMotionGroup {
           it.vimSetSelection(it.offset, end, true)
         }
       } else {
-        CommandState.getInstance(editor).pushState(CommandState.Mode.VISUAL, subMode, MappingMode.VISUAL)
+        editor.commandState.pushState(CommandState.Mode.VISUAL, subMode, MappingMode.VISUAL)
         editor.vimForEachCaret { it.vimSetSelection(it.offset) }
       }
       return true
@@ -219,7 +138,7 @@ class VisualMotionGroup {
 
     if (subMode == editor.subMode) {
       // Disable visual subMode
-      exitVisual(editor)
+      editor.exitVisualMode()
       return true
     }
 
@@ -234,12 +153,12 @@ class VisualMotionGroup {
 
   @Deprecated("Use enterVisualMode or toggleVisual methods")
   fun setVisualMode(editor: Editor) {
-    val autodetectedMode = autodetectVisualMode(editor)
+    val autodetectedMode = autodetectVisualSubmode(editor)
 
     if (editor.inVisualMode) {
-      CommandState.getInstance(editor).popState()
+      editor.commandState.popState()
     }
-    CommandState.getInstance(editor).pushState(CommandState.Mode.VISUAL, autodetectedMode, MappingMode.VISUAL)
+    editor.commandState.pushState(CommandState.Mode.VISUAL, autodetectedMode, MappingMode.VISUAL)
     if (autodetectedMode == CommandState.SubMode.VISUAL_BLOCK) {
       val (start, end) = blockModeStartAndEnd(editor)
       editor.caretModel.removeSecondaryCarets()
@@ -279,8 +198,8 @@ class VisualMotionGroup {
    * - DOES NOT check if carets actually have any selection
    */
   fun enterVisualMode(editor: Editor, subMode: CommandState.SubMode? = null): Boolean {
-    val autodetectedSubMode = subMode ?: autodetectVisualMode(editor)
-    CommandState.getInstance(editor).pushState(CommandState.Mode.VISUAL, autodetectedSubMode, MappingMode.VISUAL)
+    val autodetectedSubMode = subMode ?: autodetectVisualSubmode(editor)
+    editor.commandState.pushState(CommandState.Mode.VISUAL, autodetectedSubMode, MappingMode.VISUAL)
     if (autodetectedSubMode == CommandState.SubMode.VISUAL_BLOCK) {
       editor.caretModel.primaryCaret.run { vimSelectionStart = vimLeadSelectionOffset }
     } else {
@@ -291,13 +210,13 @@ class VisualMotionGroup {
   }
 
   fun enterSelectMode(editor: Editor, subMode: CommandState.SubMode): Boolean {
-    CommandState.getInstance(editor).pushState(CommandState.Mode.SELECT, subMode, MappingMode.SELECT)
+    editor.commandState.pushState(CommandState.Mode.SELECT, subMode, MappingMode.SELECT)
     editor.vimForEachCaret { it.vimSelectionStart = it.vimLeadSelectionOffset }
     updateCaretState(editor)
     return true
   }
 
-  private fun autodetectVisualMode(editor: Editor): CommandState.SubMode {
+  fun autodetectVisualSubmode(editor: Editor): CommandState.SubMode {
     if (editor.caretModel.caretCount > 1 && seemsLikeBlockMode(editor)) {
       return CommandState.SubMode.VISUAL_BLOCK
     }
@@ -348,74 +267,6 @@ class VisualMotionGroup {
       ?: throw RuntimeException("No carets")
     val lastLine = editor.offsetToLogicalPosition(selections.last().first).line
     return selections.first().first to editor.logicalPositionToOffset(LogicalPosition(lastLine, maxColumn))
-  }
-
-  //=============================== EXIT VISUAL and SELECT MODE ==============================================
-  /**
-   * [adjustCaretPosition] - if true, caret will be moved one char left if it's on the line end
-   * This method resets KeyHandler and should be used if you are calling it from non-vim mechanism (like adjusting
-   *   editor's selection)
-   */
-  fun exitSelectModeAndResetKeyHandler(editor: Editor, adjustCaretPosition: Boolean) {
-    if (!editor.inSelectMode) return
-
-    exitSelectMode(editor, adjustCaretPosition)
-
-    KeyHandler.getInstance().reset(editor)
-  }
-
-  fun exitSelectMode(editor: Editor, adjustCaretPosition: Boolean) {
-    if (!editor.inSelectMode) return
-
-    CommandState.getInstance(editor).popState()
-    SelectionVimListenerSuppressor.lock().use {
-      editor.caretModel.allCarets.forEach {
-        it.removeSelection()
-        it.vimSelectionStartClear()
-        if (adjustCaretPosition) {
-          val lineEnd = EditorHelper.getLineEndForOffset(editor, it.offset)
-          val lineStart = EditorHelper.getLineStartForOffset(editor, it.offset)
-          if (it.offset == lineEnd && it.offset != lineStart) {
-            it.moveToOffset(it.offset - 1)
-          }
-        }
-      }
-    }
-    updateCaretState(editor)
-  }
-
-  fun resetVisual(editor: Editor) {
-    val wasBlockSubMode = editor.inBlockSubMode
-    val selectionType = SelectionType.fromSubMode(editor.subMode)
-
-    SelectionVimListenerSuppressor.lock().use {
-      if (wasBlockSubMode) {
-        editor.caretModel.allCarets.forEach { it.visualAttributes = editor.caretModel.primaryCaret.visualAttributes }
-        editor.caretModel.removeSecondaryCarets()
-      }
-      if (!editor.vimKeepingVisualOperatorAction) {
-        editor.caretModel.allCarets.forEach(Caret::removeSelection)
-      }
-    }
-
-    if (editor.inVisualMode) {
-      editor.vimLastSelectionType = selectionType
-      // FIXME: 2019-03-05 Make it multicaret
-      val primaryCaret = editor.caretModel.primaryCaret
-      val vimSelectionStart = primaryCaret.vimSelectionStart
-      VimPlugin.getMark().setVisualSelectionMarks(editor, TextRange(vimSelectionStart, primaryCaret.offset))
-      editor.caretModel.allCarets.forEach { it.vimSelectionStartClear() }
-
-      editor.subMode = CommandState.SubMode.NONE
-    }
-  }
-
-  @RWLockLabel.NoLockRequired
-  fun exitVisual(editor: Editor) {
-    resetVisual(editor)
-    if (editor.inVisualMode) {
-      CommandState.getInstance(editor).popState()
-    }
   }
 
   val exclusiveSelection: Boolean

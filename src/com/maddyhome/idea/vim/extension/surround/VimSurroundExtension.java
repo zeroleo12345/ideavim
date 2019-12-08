@@ -75,6 +75,7 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
     .put(']', Pair.create("[", "]"))
     .put('a', Pair.create("<", ">"))
     .put('>', Pair.create("<", ">"))
+    .put('s', Pair.create(" ", ""))
     .build();
 
   @NotNull
@@ -88,12 +89,12 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
     putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>YSurround"), new YSurroundHandler(), false);
     putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>CSurround"), new CSurroundHandler(), false);
     putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>DSurround"), new DSurroundHandler(), false);
-    putExtensionHandlerMapping(MappingMode.VO, parseKeys("<Plug>VSurround"), new VSurroundHandler(), false);
+    putExtensionHandlerMapping(MappingMode.XO, parseKeys("<Plug>VSurround"), new VSurroundHandler(), false);
 
     putKeyMapping(MappingMode.N, parseKeys("ys"), parseKeys("<Plug>YSurround"), true);
     putKeyMapping(MappingMode.N, parseKeys("cs"), parseKeys("<Plug>CSurround"), true);
     putKeyMapping(MappingMode.N, parseKeys("ds"), parseKeys("<Plug>DSurround"), true);
-    putKeyMapping(MappingMode.VO, parseKeys("S"), parseKeys("<Plug>VSurround"), true);
+    putKeyMapping(MappingMode.XO, parseKeys("S"), parseKeys("<Plug>VSurround"), true);
   }
 
   @Nullable
@@ -112,7 +113,7 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
 
   @Nullable
   private static Pair<String, String> inputTagPair(@NotNull Editor editor) {
-    final String tagInput = inputString(editor, "<");
+    final String tagInput = inputString(editor, "<", '>');
     final Matcher matcher = tagNameAndAttributesCapturePattern.matcher(tagInput);
 
     if (matcher.find()) {
@@ -126,8 +127,34 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
   }
 
   @Nullable
+  private static Pair<String, String> inputFunctionName(
+    @NotNull Editor editor,
+    boolean withInternalSpaces
+  ) {
+    final String functionNameInput = inputString(editor, "function: ", null);
+
+    if (functionNameInput.isEmpty()) {
+      return null;
+    }
+
+    return withInternalSpaces
+      ? Pair.create(functionNameInput + "( ", " )")
+      : Pair.create(functionNameInput + "(", ")");
+  }
+
+  @Nullable
   private static Pair<String, String> getOrInputPair(char c, @NotNull Editor editor) {
-    return c == '<' || c == 't' ? inputTagPair(editor) : getSurroundPair(c);
+    switch (c) {
+      case '<':
+      case 't':
+        return inputTagPair(editor);
+      case 'f':
+        return inputFunctionName(editor, false);
+      case 'F':
+        return inputFunctionName(editor, true);
+      default:
+        return getSurroundPair(c);
+    }
   }
 
   private static char getChar(@NotNull Editor editor) {
@@ -140,6 +167,11 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
   }
 
   private static class YSurroundHandler implements VimExtensionHandler {
+    @Override
+    public boolean isRepeatable() {
+      return true;
+    }
+
     @Override
     public void execute(@NotNull Editor editor, @NotNull DataContext context) {
       setOperatorFunction(new Operator());
@@ -166,6 +198,11 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
   }
 
   private static class CSurroundHandler implements VimExtensionHandler {
+    @Override
+    public boolean isRepeatable() {
+      return true;
+    }
+
     @Override
     public void execute(@NotNull Editor editor, @NotNull DataContext context) {
       final char charFrom = getChar(editor);
@@ -255,6 +292,11 @@ public class VimSurroundExtension extends VimNonDisposableExtension {
   }
 
   private static class DSurroundHandler implements VimExtensionHandler {
+    @Override
+    public boolean isRepeatable() {
+      return true;
+    }
+
     @Override
     public void execute(@NotNull Editor editor, @NotNull DataContext context) {
       // Deleting surround is just changing the surrounding to "nothing"

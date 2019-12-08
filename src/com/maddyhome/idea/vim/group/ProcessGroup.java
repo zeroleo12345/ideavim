@@ -42,9 +42,6 @@ import java.util.EnumSet;
 
 
 public class ProcessGroup {
-  public ProcessGroup() {
-  }
-
   public String getLastCommand() {
     return lastCommand;
   }
@@ -62,12 +59,14 @@ public class ProcessGroup {
     panel.activate(editor, context, label, initText, count);
   }
 
+  @NotNull
   public String endSearchCommand(@NotNull final Editor editor) {
     ExEntryPanel panel = ExEntryPanel.getInstance();
     panel.deactivate(true);
 
-    record(editor, panel.getText());
-    return panel.getText();
+    String text = panel.getText();
+    record(editor, text);
+    return text;
   }
 
   public void startExCommand(@NotNull Editor editor, DataContext context, @NotNull Command cmd) {
@@ -75,7 +74,7 @@ public class ProcessGroup {
     if (editor.isOneLineMode()) return;
 
     String initText = getRange(editor, cmd);
-    CommandState.getInstance(editor).pushState(CommandState.Mode.EX_ENTRY, CommandState.SubMode.NONE, MappingMode.CMD_LINE);
+    CommandState.getInstance(editor).pushState(CommandState.Mode.CMD_LINE, CommandState.SubMode.NONE, MappingMode.CMD_LINE);
     ExEntryPanel panel = ExEntryPanel.getInstance();
     panel.activate(editor, context, ":", initText, 1);
   }
@@ -112,6 +111,7 @@ public class ProcessGroup {
         CommandParser.getInstance().processCommand(editor, context, text, 1);
       }
       else {
+        // FIXME looks like this branch gets never executed
         int pos = VimPlugin.getSearch().search(editor, text, panel.getCount(),
                                                                  panel.getLabel().equals("/")
                                                                  ? EnumSet.of(CommandFlags.FLAG_SEARCH_FWD)
@@ -135,11 +135,11 @@ public class ProcessGroup {
     return res;
   }
 
-  public void cancelExEntry(@NotNull final Editor editor, boolean scrollToOldPosition) {
+  public void cancelExEntry(@NotNull final Editor editor, boolean resetCaret) {
     CommandState.getInstance(editor).popState();
     KeyHandler.getInstance().reset(editor);
     ExEntryPanel panel = ExEntryPanel.getInstance();
-    panel.deactivate(true, scrollToOldPosition);
+    panel.deactivate(true, resetCaret);
   }
 
   private void record(Editor editor, @NotNull String text) {
@@ -150,7 +150,7 @@ public class ProcessGroup {
 
   public void startFilterCommand(@NotNull Editor editor, DataContext context, @NotNull Command cmd) {
     String initText = getRange(editor, cmd) + "!";
-    CommandState.getInstance(editor).pushState(CommandState.Mode.EX_ENTRY, CommandState.SubMode.NONE, MappingMode.CMD_LINE);
+    CommandState.getInstance(editor).pushState(CommandState.Mode.CMD_LINE, CommandState.SubMode.NONE, MappingMode.CMD_LINE);
     ExEntryPanel panel = ExEntryPanel.getInstance();
     panel.activate(editor, context, ":", initText, 1);
   }

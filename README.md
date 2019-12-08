@@ -1,26 +1,16 @@
+<img src="resources/META-INF/pluginIcon.svg" width="80" height="80" alt="icon"  align="left"/>
+
 IdeaVim
-=======
+===
 
 <div>
   <a href="https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub">
     <img src="https://jb.gg/badges/official.svg" alt="official JetBrains project"/>
   </a>
-</div>
-
-<div>
-  <a href="https://teamcity.jetbrains.com/viewType.html?buildTypeId=IdeaVim_Deploy&guest=1">
-    <img src="https://teamcity.jetbrains.com/app/rest/builds/buildType:(id:IdeaVim_Deploy)/statusIcon.svg?guest=1"/>
+  <a href="https://teamcity.jetbrains.com/viewType.html?buildTypeId=IdeaVim_TestsForIntelliJ20191&guest=1">
+    <img src="https://teamcity.jetbrains.com/app/rest/builds/buildType:(id:IdeaVim_TestsForIntelliJ20191)/statusIcon.svg?guest=1"/>
   </a>
-  <span>Stable</span>
 </div>
-
-<div>
-  <a href="https://teamcity.jetbrains.com/viewType.html?buildTypeId=IdeaVim_Build&guest=1">
-    <img src="https://teamcity.jetbrains.com/app/rest/builds/buildType:(id:IdeaVim_Build)/statusIcon.svg?guest=1"/>
-  </a>
-  <span>EAP</span>
-</div>
-
 
 IdeaVim is a Vim emulation plugin for IDEs based on the IntelliJ Platform.
 IdeaVim can be used with IntelliJ IDEA, PyCharm, CLion, PhpStorm, WebStorm,
@@ -58,6 +48,10 @@ Get Early Access
 
 Would you like to try new features and fixes? Join the Early Access Program and
 receive EAP builds as updates!  
+
+1. Click the IdeaVim icon in the status bar | `EAP` | `Get Early Access...`
+
+Or subscribe to EAP updates manually:
 
 1. Open `Settings | Plugins`
 2. Click the gear icon :gear:, select `Manage Plugin Repositories`, and add the following url:
@@ -133,24 +127,40 @@ will affect where IdeaVim looks for your .ideavimrc file. For example, if you
 have `-Duser.home=/my/alternate/home` then IdeaVim will source
 `/my/alternate/home/.ideavimrc` instead of `~/.ideavimrc`.
 
+Alternatively, you can set up initialization commands using [XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) standard.
+Put your settings to `$XDG_CONFIG_HOME$/ideavim/ideavimrc` file.     [To Be Released]
+
 
 Emulated Vim Plugins
 --------------------
 
 IdeaVim extensions emulate some plugins of the original Vim. In order to use
-IdeaVim extensions, you have to enable them via this command in your ~/.ideavimrc:
+IdeaVim extensions, you have to enable them via this command in your `~/.ideavimrc`:
 
     set <extension-name>
 
 Available extensions:
 
+* easymotion
+    * Setup:  
+        * Install [IdeaVim-EasyMotion](https://plugins.jetbrains.com/plugin/13360-ideavim-easymotion/)
+        and [AceJump](https://plugins.jetbrains.com/plugin/7086-acejump/) plugins.
+        * `set easymotion`
+    * Emulates [vim-easymotion](https://github.com/easymotion/vim-easymotion)
+    * Commands: All commands with the mappings are supported. See the [full list of supported commands](https://github.com/AlexPl292/IdeaVim-EasyMotion#supported-commands).
+
 * surround
+    * Setup: `set surround`
     * Emulates [vim-surround](https://github.com/tpope/vim-surround)
     * Commands: `ys`, `cs`, `ds`, `S`
+
 * multiple-cursors
+    * Setup: `set multiple-cursors`
     * Emulates [vim-multiple-cursors](https://github.com/terryma/vim-multiple-cursors)
     * Commands: `<A-n>`, `<A-x>`, `<A-p>`, `g<A-n>`
+
 * commentary
+    * Setup: `set commentary`
     * Emulates [commentary.vim](https://github.com/tpope/vim-commentary)
     * Commands: `gcc`, `gc + motion`, `v_gc`
 
@@ -206,4 +216,5 @@ for a list of authors and contributors.
 License
 -------
 
-IdeaVim is licensed under the terms of the GNU Public License version 2.
+IdeaVim is licensed under the terms of the GNU Public License version 2
+or any later version.

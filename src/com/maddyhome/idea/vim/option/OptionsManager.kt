@@ -18,14 +18,23 @@
 
 package com.maddyhome.idea.vim.option
 
+import com.intellij.codeInsight.lookup.LookupEvent
+import com.intellij.codeInsight.lookup.LookupListener
+import com.intellij.codeInsight.lookup.LookupManager
+import com.intellij.codeInsight.lookup.impl.LookupImpl
+import com.intellij.codeInsight.template.impl.TemplateManagerImpl
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.ex.ExOutputModel
-import com.maddyhome.idea.vim.extension.VimExtension
 import com.maddyhome.idea.vim.helper.EditorHelper
 import com.maddyhome.idea.vim.helper.MessageHelper
 import com.maddyhome.idea.vim.helper.Msg
+import com.maddyhome.idea.vim.helper.hasVisualSelection
+import com.maddyhome.idea.vim.helper.isBlockCaret
+import com.maddyhome.idea.vim.helper.mode
+import com.maddyhome.idea.vim.listener.SelectionVimListenerSuppressor
 import org.jetbrains.annotations.Contract
 import java.util.*
 import kotlin.math.ceil
@@ -48,7 +57,7 @@ object OptionsManager {
   val incsearch = addOption(ToggleOption("incsearch", "is", false))
   val iskeyword = addOption(KeywordOption("iskeyword", "isk", arrayOf("@", "48-57", "_")))
   val keymodel = addOption(KeyModelOptionData.option)
-  val lookupActions = addOption(ListOption("lookupactions", "lookupactions", arrayOf("VimLookupUp", "VimLookupDown"), null))
+  val lookupKeys = addOption(ListOption("lookupkeys", "lookupkeys", arrayOf(), null))
   val matchpairs = addOption(ListOption("matchpairs", "mps", arrayOf("(:)", "{:}", "[:]"), ".:."))
   val more = addOption(ToggleOption("more", "more", true))
   val nrformats = addOption(BoundListOption("nrformats", "nf", arrayOf("octal", "hex"), arrayOf("octal", "hex", "alpha")))
@@ -71,10 +80,8 @@ object OptionsManager {
   val visualbell = addOption(ToggleOption("visualbell", "vb", false))
   val wrapscan = addOption(ToggleOption("wrapscan", "ws", true))
   val visualEnterDelay = addOption(NumberOption("visualdelay", "visualdelay", 100, 0, Int.MAX_VALUE))
-
-  init {
-    registerExtensionOptions()
-  }
+  val idearefactormode = addOption(BoundStringOption(IdeaRefactorMode.name, IdeaRefactorMode.name, IdeaRefactorMode.select, IdeaRefactorMode.availableValues))
+  val ideastatusbar = addOption(ToggleOption("ideastatusbar", "ideastatusbar", true))
 
   fun isSet(name: String): Boolean {
     val option = getOption(name)
@@ -89,26 +96,6 @@ object OptionsManager {
    * Gets an option by the supplied name or short name.
    */
   fun getOption(name: String): Option? = options[name] ?: abbrevs[name]
-
-  private fun registerExtensionOptions() {
-    for (extension in VimExtension.EP_NAME.extensionList) {
-      val name = extension.name
-      val option = ToggleOption(name, name, false)
-      option.addOptionChangeListener {
-        for (extensionInListener in VimExtension.EP_NAME.extensionList) {
-          if (name == extensionInListener.name) {
-            if (isSet(name)) {
-              extensionInListener.init()
-              logger.info("IdeaVim extension '$name' initialized")
-            } else {
-              extensionInListener.dispose()
-            }
-          }
-        }
-      }
-      addOption(option)
-    }
-  }
 
   /**
    * This parses a set of :set commands. The following types of commands are supported:
@@ -324,12 +311,7 @@ object OptionsManager {
     var empty = cols.size % colCount
     empty = if (empty == 0) colCount else empty
 
-    if (logger.isDebugEnabled) {
-      logger.debug("showOptions")
-      logger.debug("width=$width")
-      logger.debug("colCount=$colCount")
-      logger.debug("height=$height")
-    }
+    logger.debug { "showOptions, width=$width, colCount=$colCount, height=$height" }
 
     val res = StringBuilder()
     if (showIntro) {
@@ -395,12 +377,23 @@ object SelectModeOptionData {
   const val mouse = "mouse"
   const val key = "key"
   const val cmd = "cmd"
+
+  @Deprecated("Please, use `idearefactormode` option")
   const val template = "template"
+  @Deprecated("Please, use `ideaselection`")
   const val refactoring = "refactoring"
 
-  val options = arrayOf(mouse, key, cmd, template, refactoring)
-  val default = arrayOf(template)
+  const val ideaselection = "ideaselection"
+
+  @Suppress("DEPRECATION")
+  val options = arrayOf(mouse, key, cmd, template, refactoring, ideaselection)
+  val default = emptyArray<String>()
   val option = BoundListOption(name, abbr, default, options)
+
+  fun ideaselectionEnabled(): Boolean {
+    @Suppress("DEPRECATION")
+    return ideaselection in OptionsManager.selectmode || refactoring in OptionsManager.selectmode
+  }
 }
 
 object ClipboardOptionsData {
@@ -453,4 +446,55 @@ object SmartCaseOptionsData {
 object IgnoreCaseOptionsData {
   const val name = "ignorecase"
   const val abbr = "ic"
+}
+
+object IdeaRefactorMode {
+  const val name = "idearefactormode"
+
+  const val keep = "keep"
+  const val select = "select"
+  const val visual = "visual"
+
+  val availableValues = arrayOf(keep, select, visual)
+
+  fun keepMode(): Boolean = OptionsManager.idearefactormode.value == keep
+  fun selectMode(): Boolean = OptionsManager.idearefactormode.value == select
+  fun visualMode(): Boolean = OptionsManager.idearefactormode.value == visual
+
+  fun correctSelection(editor: Editor) {
+    val action: () -> Unit = {
+      if (!editor.mode.hasVisualSelection && editor.selectionModel.hasSelection()) {
+        SelectionVimListenerSuppressor.lock().use {
+          editor.selectionModel.removeSelection()
+        }
+      }
+
+      if (editor.mode.isBlockCaret) {
+        TemplateManagerImpl.getTemplateState(editor)?.currentVariableRange?.let { segmentRange ->
+          if (!segmentRange.isEmpty && segmentRange.endOffset == editor.caretModel.offset && editor.caretModel.offset != 0) {
+            editor.caretModel.moveToOffset(editor.caretModel.offset - 1)
+          }
+        }
+      }
+    }
+
+    val lookup = LookupManager.getActiveLookup(editor) as? LookupImpl
+    if (lookup != null) {
+      val selStart = editor.selectionModel.selectionStart
+      val selEnd = editor.selectionModel.selectionEnd
+      lookup.performGuardedChange(action)
+      lookup.addLookupListener(object : LookupListener {
+        override fun beforeItemSelected(event: LookupEvent): Boolean {
+          // FIXME: 01.11.2019 Nasty workaround because of problems in IJ platform
+          //   Lookup replaces selected text and not the template itself. So, if there is no selection
+          //   in the template, lookup value will not replace the template, but just insert value on the caret position
+          lookup.performGuardedChange { editor.selectionModel.setSelection(selStart, selEnd) }
+          lookup.removeLookupListener(this)
+          return true
+        }
+      })
+    } else {
+      action()
+    }
+  }
 }

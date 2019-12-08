@@ -21,40 +21,31 @@ package com.maddyhome.idea.vim.action.motion.updown
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.VimCommandAction
 import com.maddyhome.idea.vim.command.Command
-import com.maddyhome.idea.vim.command.MappingMode
 import com.maddyhome.idea.vim.group.MotionGroup
 import com.maddyhome.idea.vim.handler.ShiftedArrowKeyHandler
-import com.maddyhome.idea.vim.handler.VimActionHandler
 import com.maddyhome.idea.vim.helper.EditorHelper
 import com.maddyhome.idea.vim.helper.vimForEachCaret
-import javax.swing.KeyStroke
 
 /**
  * @author Alex Plate
  */
 
-class MotionShiftDownAction : VimCommandAction() {
-  override fun makeActionHandler(): VimActionHandler = object : ShiftedArrowKeyHandler() {
-    override fun motionWithKeyModel(editor: Editor, context: DataContext, cmd: Command) {
-      editor.vimForEachCaret { caret ->
-        val vertical = VimPlugin.getMotion().moveCaretVertical(editor, caret, cmd.count)
-        val col = EditorHelper.prepareLastColumn(editor, caret)
-        MotionGroup.moveCaret(editor, caret, vertical)
+class MotionShiftDownAction : ShiftedArrowKeyHandler() {
 
-        EditorHelper.updateLastColumn(editor, caret, col)
-      }
-    }
+  override val type: Command.Type = Command.Type.OTHER_READONLY
 
-    override fun motionWithoutKeyModel(editor: Editor, context: DataContext, cmd: Command) {
-      VimPlugin.getMotion().scrollFullPage(editor, cmd.count)
+  override fun motionWithKeyModel(editor: Editor, context: DataContext, cmd: Command) {
+    editor.vimForEachCaret { caret ->
+      val vertical = VimPlugin.getMotion().moveCaretVertical(editor, caret, cmd.count)
+      val col = EditorHelper.prepareLastColumn(editor, caret)
+      MotionGroup.moveCaret(editor, caret, vertical)
+
+      EditorHelper.updateLastColumn(editor, caret, col)
     }
   }
 
-  override val mappingModes: MutableSet<MappingMode> = MappingMode.NVS
-
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("<S-Down>")
-
-  override val type: Command.Type = Command.Type.OTHER_READONLY
+  override fun motionWithoutKeyModel(editor: Editor, context: DataContext, cmd: Command) {
+    VimPlugin.getMotion().scrollFullPage(editor, cmd.count)
+  }
 }

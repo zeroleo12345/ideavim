@@ -26,7 +26,6 @@ import com.maddyhome.idea.vim.common.TextRange
 import com.maddyhome.idea.vim.ex.*
 
 class YankLinesHandler : CommandHandler.SingleExecution() {
-  override val names = commands("y[ank]")
   override val argFlags = flags(RangeFlag.RANGE_OPTIONAL, ArgumentFlag.ARGUMENT_OPTIONAL, Access.READ_ONLY)
 
   @Throws(ExException::class)
@@ -48,7 +47,7 @@ class YankLinesHandler : CommandHandler.SingleExecution() {
     for (caret in caretModel.allCarets) {
       val range = cmd.getTextRange(editor, caret, context, true)
       starts.add(range.startOffset)
-      ends.add(range.endOffset - 1)
+      ends.add(range.endOffset)
     }
 
     return VimPlugin.getYank().yankRange(editor,

@@ -29,7 +29,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,12 +39,15 @@ import java.util.regex.Pattern;
  * @author vlan
  */
 public class VimScriptParser {
-  public static final String[] VIMRC_FILES = {".ideavimrc", "_ideavimrc"};
+  public static final String VIMRC_FILE_NAME = "ideavimrc";
+  public static final String[] HOME_VIMRC_PATHS = {"." + VIMRC_FILE_NAME, "_" + VIMRC_FILE_NAME};
+  public static final String XDG_VIMRC_PATH = "ideavim" + File.pathSeparator + VIMRC_FILE_NAME;
   public static final int BUFSIZE = 4096;
   private static final Pattern EOL_SPLIT_PATTERN = Pattern.compile(" *(\r\n|\n)+ *");
   private static final Pattern DOUBLE_QUOTED_STRING = Pattern.compile("\"([^\"]*)\"");
   private static final Pattern SINGLE_QUOTED_STRING = Pattern.compile("'([^']*)'");
   private static final Pattern REFERENCE_EXPR = Pattern.compile("([A-Za-z_][A-Za-z_0-9]*)");
+  private static final Pattern DEC_NUMBER = Pattern.compile("(\\d+)");
 
   private VimScriptParser() {
   }
@@ -50,14 +55,31 @@ public class VimScriptParser {
   @Nullable
   public static File findIdeaVimRc() {
     final String homeDirName = System.getProperty("user.home");
+
+    // Check whether file exists in home dir
     if (homeDirName != null) {
-      for (String fileName : VIMRC_FILES) {
+      for (String fileName : HOME_VIMRC_PATHS) {
         final File file = new File(homeDirName, fileName);
         if (file.exists()) {
           return file;
         }
       }
     }
+
+    // Check in XDG config directory
+    final String xdgConfigHomeProperty = System.getenv("XDG_CONFIG_HOME");
+    File xdgConfig = null;
+    if (xdgConfigHomeProperty == null || Objects.equals(xdgConfigHomeProperty, "")) {
+      if (homeDirName != null) {
+        xdgConfig = Paths.get(homeDirName, ".config", XDG_VIMRC_PATH).toFile();
+      }
+    } else {
+      xdgConfig = new File(xdgConfigHomeProperty, XDG_VIMRC_PATH);
+    }
+    if (xdgConfig != null && xdgConfig.exists()) {
+      return xdgConfig;
+    }
+
     return null;
   }
 
@@ -68,7 +90,7 @@ public class VimScriptParser {
 
     final String homeDirName = System.getProperty("user.home");
     if (homeDirName != null) {
-      for (String fileName : VIMRC_FILES) {
+      for (String fileName : HOME_VIMRC_PATHS) {
         try {
           final File file = new File(homeDirName, fileName);
           //noinspection ResultOfMethodCallIgnored
@@ -140,6 +162,10 @@ public class VimScriptParser {
         throw new ExException(String.format("Undefined variable: %s", name));
       }
     }
+    m = DEC_NUMBER.matcher(expression);
+    if (m.matches()) {
+      return Integer.parseInt(m.group(1));
+    }
     throw new ExException(String.format("Invalid expression: %s", expression));
   }
 
@@ -148,6 +174,8 @@ public class VimScriptParser {
     // TODO: Return meaningful value representations
     if (value instanceof String) {
       return (String)value;
+    } else if (value instanceof Integer) {
+      return value.toString();
     }
     throw new ExException(String.format("Cannot convert '%s' to string", value));
   }

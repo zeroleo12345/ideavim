@@ -22,37 +22,34 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.MotionEditorAction
+import com.maddyhome.idea.vim.action.ComplicatedKeysAction
 import com.maddyhome.idea.vim.command.Argument
-import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
+import com.maddyhome.idea.vim.command.MotionType
 import com.maddyhome.idea.vim.handler.MotionActionHandler
 import java.awt.event.KeyEvent
-import java.util.*
 import javax.swing.KeyStroke
 
-class MotionRightAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.NVO
+class MotionRightAction : MotionActionHandler.ForEachCaret() {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("l")
-
-  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_MOT_EXCLUSIVE)
-
-  override fun makeActionHandler(): MotionActionHandler = MotionRightActionHandler
+  override fun getOffset(editor: Editor,
+                         caret: Caret,
+                         context: DataContext,
+                         count: Int,
+                         rawCount: Int,
+                         argument: Argument?): Int {
+    return VimPlugin.getMotion().moveCaretHorizontal(editor, caret, count, true)
+  }
 }
 
-class MotionRightInsertAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.I
+class MotionRightInsertAction : MotionActionHandler.ForEachCaret(), ComplicatedKeysAction {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
   override val keyStrokesSet: Set<List<KeyStroke>> = setOf(
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0)),
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, 0))
   )
 
-  override fun makeActionHandler(): MotionActionHandler = MotionRightActionHandler
-}
-
-private object MotionRightActionHandler : MotionActionHandler.ForEachCaret() {
   override fun getOffset(editor: Editor,
                          caret: Caret,
                          context: DataContext,

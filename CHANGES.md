@@ -8,19 +8,80 @@ Get an Early Access
 -------------------
 
 Would you like to try new features and fixes? Join the Early Access Program and
-receive EAP builds as updates! Add this URL to "Settings | Plugins |
-Browse Repositories | Manage Repositories":
-[https://plugins.jetbrains.com/plugins/eap/ideavim](https://plugins.jetbrains.com/plugins/eap/ideavim)
+receive EAP builds as updates! Use the `EAP` option in the status bar or
+add this URL to "Settings | Plugins | Manage Plugin Repositories":
+`https://plugins.jetbrains.com/plugins/eap/ideavim`
 
 It is important to distinguish EAP from traditional pre-release software.
 Please note that the quality of EAP versions may at times be way below even
 usual beta standards.
 
-To be released
+[To Be Released]
 --------------
+
+**Features:**
+* Surround and Commentary extensions can be repeated with a dot command ([VIM-1118](https://youtrack.jetbrains.com/issue/VIM-1118))
+* Support XDG settings standard ([VIM-664](https://youtrack.jetbrains.com/issue/VIM-664))
+* Add option to remove the status bar icon ([VIM-1847](https://youtrack.jetbrains.com/issue/VIM-1847))
+
+**Fixes:**
+* [VIM-1823](https://youtrack.jetbrains.com/issue/VIM-1823) Fix multiple carets with ignorecase
+* [VIM-1053](https://youtrack.jetbrains.com/issue/VIM-1053)
+  [VIM-1038](https://youtrack.jetbrains.com/issue/VIM-1038)
+  Implement gq+motion. Support some double `g` commands (`guu`, `gUU`, `g~~`).
+* [VIM-1325](https://youtrack.jetbrains.com/issue/VIM-1325)
+  [VIM-1050](https://youtrack.jetbrains.com/issue/VIM-1050)
+  [VIM-1627](https://youtrack.jetbrains.com/issue/VIM-1627)
+  Fix bindings for active lookup
+* [VIM-1845](https://youtrack.jetbrains.com/issue/VIM-1845) Show ActionGroup popups
+* [VIM-1424](https://youtrack.jetbrains.com/issue/VIM-1424) CTRL-A doesn't have any restrictions now
+* [VIM-1454](https://youtrack.jetbrains.com/issue/VIM-1454) Fix CTRL-W with the autocompletion lookup
+* [VIM-1855](https://youtrack.jetbrains.com/issue/VIM-1855) Fix initialization error
+* [VIM-1853](https://youtrack.jetbrains.com/issue/VIM-1853) Fix marks for disposed projects
+* [VIM-1858](https://youtrack.jetbrains.com/issue/VIM-1858) Fix imap for autocomplete
+* [VIM-1362](https://youtrack.jetbrains.com/issue/VIM-1362) Search with confirm doesn't scroll down far enough
+
+
+0.54, 2019-11-20
+--------------
+
+**Features:**
+* EasyMotion plugin emulation ([VIM-820](https://youtrack.jetbrains.com/issue/VIM-820) | [Instructions](https://github.com/JetBrains/ideavim#emulated-vim-plugins))
+* Support surrounding with a function name ([link](https://github.com/tpope/vim-surround/blob/master/doc/surround.txt#L138))
+* Add `:delmarks` command ([VIM-1720](https://youtrack.jetbrains.com/issue/VIM-1720))
+* Add IdeaVim icon to the status bar ([VIM-943](https://youtrack.jetbrains.com/issue/VIM-943))
+
+**Changes:**
+* Remove the default IdeaVim toggle shortcut (<kbd>CTRL</kbd><kbd>ALT</kbd><kbd>V</kbd>)
+* Rename `refactoring` value of `selectmode` option to `ideaselection`
+* Remove `template` value of `selectmode` option and replace it with `idearefactormode` option.
+
+**Fixes:**
 * [VIM-1766](https://youtrack.jetbrains.com/issue/VIM-1766) Fix disappearing caret in ex entry on Linux
 * [VIM-1032](https://youtrack.jetbrains.com/issue/VIM-1032) Annotations work well with relative line numbers enabled
 * [VIM-1762](https://youtrack.jetbrains.com/issue/VIM-1762) Relative line numbers respect line number theme
+* [VIM-1717](https://youtrack.jetbrains.com/issue/VIM-1717) Fix incorrect scroll location if no match with `incsearch`
+* [VIM-1757](https://youtrack.jetbrains.com/issue/VIM-1757) Fix incorrect search results when specifying offset as part of search command
+* Fix search highlights not showing after deleting last result
+* Update current line highlight during incsearch and replace operation
+* [VIM-1773](https://youtrack.jetbrains.com/issue/VIM-1773) Provide fallback error stripe colour if not defined
+* [VIM-1785](https://youtrack.jetbrains.com/issue/VIM-1785)
+  [VIM-1731](https://youtrack.jetbrains.com/issue/VIM-1731)
+  Fix some problems with yanking to clipboard
+* [VIM-1781](https://youtrack.jetbrains.com/issue/VIM-1781) Fix yanking with dollar motion
+* [VIM-1772](https://youtrack.jetbrains.com/issue/VIM-1772) Fix yanking with `:y` command
+* [VIM-1685](https://youtrack.jetbrains.com/issue/VIM-1685) Fix `ESC` for insert mode
+* [VIM-1752](https://youtrack.jetbrains.com/issue/VIM-1752) Fix `ESC` for insert mode
+* [VIM-1189](https://youtrack.jetbrains.com/issue/VIM-1189)
+  [VIM-927](https://youtrack.jetbrains.com/issue/VIM-927)
+  Fix mappings to black hole register
+* [VIM-1804](https://youtrack.jetbrains.com/issue/VIM-1804) Exit insert move after toggling IdeaVim
+* [VIM-1749](https://youtrack.jetbrains.com/issue/VIM-1749) Tag surround is finished on `>`
+* [VIM-1801](https://youtrack.jetbrains.com/issue/VIM-1801) Fix j/k motions with inline hints
+* [VIM-1800](https://youtrack.jetbrains.com/issue/VIM-1800) Improve ideamarks option
+* [VIM-1819](https://youtrack.jetbrains.com/issue/VIM-1819) Fix execution of some rider actions
+* [VIM-1604](https://youtrack.jetbrains.com/issue/VIM-1604) Add IdeaVim logo
+
 
 0.53, 2019-08-07
 --------------
@@ -32,8 +93,7 @@ To be released
 * [VIM-1725](https://youtrack.jetbrains.com/issue/VIM-1725) Fix problems with Japanese language
 * [VIM-1648](https://youtrack.jetbrains.com/issue/VIM-1648) Fix exception while substitute with conformation
 * [VIM-1736](https://youtrack.jetbrains.com/issue/VIM-1736) Fix `` for ex panel
-* [VIM-1739](https://youtrack.jetbrains.com/issue/VIM-1739) Fix full-width characters for ex panel
-
+* [VIM-1739](https://youtrack.jetbrains.com/issue/VIM-1739) Fix full-width characters for ex pane
 
 0.52, 2019-07-23
 --------------

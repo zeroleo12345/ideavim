@@ -21,12 +21,13 @@ import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.util.ThrowableComputable;
 import com.maddyhome.idea.vim.VimPlugin;
 import com.maddyhome.idea.vim.command.SelectionType;
 import com.maddyhome.idea.vim.common.Register;
 import com.maddyhome.idea.vim.common.TextRange;
-import com.maddyhome.idea.vim.ex.handler.*;
+import com.maddyhome.idea.vim.ex.handler.GotoLineHandler;
 import com.maddyhome.idea.vim.ex.range.AbstractRange;
 import com.maddyhome.idea.vim.group.HistoryGroup;
 import com.maddyhome.idea.vim.helper.MessageHelper;
@@ -44,68 +45,11 @@ import java.util.regex.Pattern;
 public class CommandParser {
   private static final int MAX_RECURSION = 100;
   private static final Pattern TRIM_WHITESPACE = Pattern.compile("[ \\t]*(.*)[ \\t\\n\\r]+", Pattern.DOTALL);
-  private final CommandHandler[] myHandlers = new CommandHandler[] {
-    new ActionListHandler(),
-    new AsciiHandler(),
-    new CmdFilterHandler(),
-    new CmdHandler(),
-    new CmdClearHandler(),
-    new CopyTextHandler(),
-    new DelCmdHandler(),
-    new DeleteLinesHandler(),
-    new DigraphHandler(),
-    new DumpLineHandler(),
-    new EditFileHandler(),
-    new ActionHandler(),
-    new EchoHandler(),
-    new ExitHandler(),
-    new FindClassHandler(),
-    new FindFileHandler(),
-    new FindSymbolHandler(),
-    new GotoCharacterHandler(),
-    //new GotoLineHandler(); - not needed here
-    new HelpHandler(),
-    new HistoryHandler(),
-    new JoinLinesHandler(),
-    new JumpsHandler(),
-    new LetHandler(),
-    new MapHandler(),
-    new MarkHandler(),
-    new MarksHandler(),
-    new MoveTextHandler(),
-    new NextFileHandler(),
-    new NoHLSearchHandler(),
-    new OnlyHandler(),
-    new PreviousFileHandler(),
-    new PromptFindHandler(),
-    new PromptReplaceHandler(),
-    new PutLinesHandler(),
-    new QuitHandler(),
-    new RedoHandler(),
-    new RegistersHandler(),
-    new RepeatHandler(),
-    new SelectFileHandler(),
-    new SelectFirstFileHandler(),
-    new SelectLastFileHandler(),
-    new SetHandler(),
-    new ShiftLeftHandler(),
-    new ShiftRightHandler(),
-    new SourceHandler(),
-    new SortHandler(),
-    new SplitHandler(),
-    new SubstituteHandler(),
-    new UndoHandler(),
-    new WriteAllHandler(),
-    new WriteHandler(),
-    new WriteNextFileHandler(),
-    new WritePreviousFileHandler(),
-    new WriteQuitHandler(),
-    new YankLinesHandler(),
-    new ShellHandler(),
-    new NextTabHandler(),
-    new PreviousTabHandler(),
-    new TabOnlyHandler()
-};
+  private final ExtensionPointName<ExBeanClass> EX_COMMAND_EP = ExtensionPointName.create("IdeaVIM.vimExCommand");
+
+  private static class CommandParserHolder {
+    static final CommandParser INSTANCE = new CommandParser();
+  }
 
   /**
    * There is only one parser.
@@ -113,10 +57,7 @@ public class CommandParser {
    * @return The singleton instance
    */
   public synchronized static CommandParser getInstance() {
-    if (ourInstance == null) {
-      ourInstance = new CommandParser();
-    }
-    return ourInstance;
+    return CommandParserHolder.INSTANCE;
   }
 
   /**
@@ -130,13 +71,11 @@ public class CommandParser {
    */
   public void registerHandlers() {
     if (registered) return;
+    registered = true;
 
-    for (CommandHandler handler : myHandlers) {
+    for (ExBeanClass handler : EX_COMMAND_EP.getExtensions()) {
       handler.register();
     }
-
-    registered = true;
-    //logger.debug("root=" + root);
   }
 
   /**
@@ -262,7 +201,8 @@ public class CommandParser {
         return null;
       }
     }
-    return node.getCommandHandler();
+    final ExBeanClass handlerHolder = node.getCommandHandler();
+    return handlerHolder != null ? handlerHolder.getHandler() : null;
   }
 
   /**
@@ -601,14 +541,20 @@ public class CommandParser {
     return new ExCommand(ranges, command.toString(), argumentString);
   }
 
-  /**
-   * Adds a command handler to the parser
-   *
-   * @param handler The new handler to add
-   */
-  public void addHandler(@NotNull CommandHandler handler) {
+  /** Adds a command handler to the parser */
+  public void addHandler(@NotNull ExBeanClass handlerHolder) {
     // Iterator through each command name alias
-    for (CommandName name : handler.getNames()) {
+    CommandName[] names;
+    if (handlerHolder.getNames() != null) {
+      names = CommandDefinitionKt.commands(handlerHolder.getNames().split(","));
+    }
+    else if (handlerHolder.getHandler() instanceof ComplicatedNameExCommand) {
+      names = ((ComplicatedNameExCommand)handlerHolder.getHandler()).getNames();
+    }
+    else {
+      throw new RuntimeException("Cannot create an ex command: " + handlerHolder);
+    }
+    for (CommandName name : names) {
       CommandNode node = root;
       String text = name.getRequired();
       // Build a tree for each character in the required portion of the command name
@@ -624,10 +570,10 @@ public class CommandParser {
       // For the last character we need to add the actual handler
       CommandNode cn = node.getChild(text.charAt(text.length() - 1));
       if (cn == null) {
-        cn = node.addChild(text.charAt(text.length() - 1), handler);
+        cn = node.addChild(text.charAt(text.length() - 1), handlerHolder);
       }
       else {
-        cn.setCommandHandler(handler);
+        cn.setCommandHandler(handlerHolder);
       }
       node = cn;
 
@@ -636,10 +582,10 @@ public class CommandParser {
       for (int i = 0; i < text.length(); i++) {
         cn = node.getChild(text.charAt(i));
         if (cn == null) {
-          cn = node.addChild(text.charAt(i), handler);
+          cn = node.addChild(text.charAt(i), handlerHolder);
         }
         else if (cn.getCommandHandler() == null) {
-          cn.setCommandHandler(handler);
+          cn.setCommandHandler(handlerHolder);
         }
 
         node = cn;
@@ -649,8 +595,6 @@ public class CommandParser {
 
   @NotNull private final CommandNode root = new CommandNode();
   private boolean registered = false;
-
-  private static CommandParser ourInstance;
 
   private enum State {
     START,

@@ -22,27 +22,32 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.MotionEditorAction
+import com.maddyhome.idea.vim.action.ComplicatedKeysAction
 import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
+import com.maddyhome.idea.vim.command.MotionType
 import com.maddyhome.idea.vim.handler.MotionActionHandler
+import com.maddyhome.idea.vim.helper.enumSetOf
 import java.awt.event.KeyEvent
 import java.util.*
 import javax.swing.KeyStroke
 
-class MotionWordRightAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.NVO
+class MotionWordRightAction : MotionActionHandler.ForEachCaret() {
 
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("w")
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
-  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_MOT_EXCLUSIVE)
-
-  override fun makeActionHandler(): MotionActionHandler = MotionWordRightActionHandler
+  override fun getOffset(editor: Editor,
+                         caret: Caret,
+                         context: DataContext,
+                         count: Int,
+                         rawCount: Int,
+                         argument: Argument?): Int {
+    return VimPlugin.getMotion().findOffsetOfNextWord(editor, caret.offset, count, false)
+  }
 }
 
-class MotionWordRightInsertAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.I
+class MotionWordRightInsertAction : MotionActionHandler.ForEachCaret(), ComplicatedKeysAction {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
   override val keyStrokesSet: Set<List<KeyStroke>> = setOf(
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.CTRL_MASK)),
@@ -51,12 +56,8 @@ class MotionWordRightInsertAction : MotionEditorAction() {
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, KeyEvent.SHIFT_MASK))
   )
 
-  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_SAVE_STROKE)
+  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_SAVE_STROKE)
 
-  override fun makeActionHandler(): MotionActionHandler = MotionWordRightActionHandler
-}
-
-private object MotionWordRightActionHandler : MotionActionHandler.ForEachCaret() {
   override fun getOffset(editor: Editor,
                          caret: Caret,
                          context: DataContext,

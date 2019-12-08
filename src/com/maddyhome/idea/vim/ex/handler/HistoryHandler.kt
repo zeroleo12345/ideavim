@@ -20,13 +20,13 @@ package com.maddyhome.idea.vim.ex.handler
 
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.ex.*
 import com.maddyhome.idea.vim.group.HistoryGroup.*
 
 class HistoryHandler : CommandHandler.SingleExecution() {
-  override val names = commands("his[tory]")
   override val argFlags = flags(RangeFlag.RANGE_FORBIDDEN, ArgumentFlag.ARGUMENT_OPTIONAL, Access.READ_ONLY)
   override fun execute(editor: Editor, context: DataContext, cmd: ExCommand): Boolean {
     logger.debug("execute")
@@ -48,9 +48,7 @@ class HistoryHandler : CommandHandler.SingleExecution() {
       arg = ""
     }
 
-    if (logger.isDebugEnabled) {
-      logger.debug("key='$key'")
-    }
+    logger.debug { "key='$key'" }
 
     if (key.length == 1 && key[0] in ":/=@") {
       when (key[0]) {
@@ -66,9 +64,7 @@ class HistoryHandler : CommandHandler.SingleExecution() {
         !"input".startsWith(key) &&
         !"all".startsWith(key)) {
         // Invalid command
-        if (logger.isDebugEnabled) {
-          logger.debug("invalid command $key")
-        }
+        logger.debug { "invalid command $key" }
         return false
       }
     } else {
@@ -116,9 +112,7 @@ class HistoryHandler : CommandHandler.SingleExecution() {
   }
 
   private fun processKey(start: Int, end: Int) = { key: String ->
-    if (logger.isDebugEnabled) {
-      logger.debug("process $key $start,$end")
-    }
+    logger.debug { "process $key $start,$end" }
 
     VimPlugin.getHistory().getEntries(key, start, end).joinToString("\n", prefix = "      #  $key history\n") { entry ->
       val num = entry.number.toString().padStart(7)

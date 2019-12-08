@@ -22,39 +22,33 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Caret
 import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
-import com.maddyhome.idea.vim.action.MotionEditorAction
 import com.maddyhome.idea.vim.command.Argument
 import com.maddyhome.idea.vim.command.CommandFlags
-import com.maddyhome.idea.vim.command.MappingMode
+import com.maddyhome.idea.vim.command.MotionType
 import com.maddyhome.idea.vim.handler.MotionActionHandler
 import java.util.*
-import javax.swing.KeyStroke
 
-class MotionGotoMarkAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.N
-
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("`")
+class MotionGotoMarkAction : MotionActionHandler.ForEachCaret() {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
   override val argumentType: Argument.Type = Argument.Type.CHARACTER
 
-  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_MOT_EXCLUSIVE, CommandFlags.FLAG_SAVE_JUMP)
+  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_SAVE_JUMP)
 
-  override fun makeActionHandler(): MotionActionHandler = MotionGotoMarkActionHandler
+  override fun getOffset(editor: Editor, caret: Caret, context: DataContext, count: Int,
+                         rawCount: Int, argument: Argument?): Int {
+    if (argument == null) return -1
+
+    val mark = argument.character
+    return VimPlugin.getMotion().moveCaretToMark(editor, mark, false)
+  }
 }
 
-class MotionGotoMarkNoSaveJumpAction : MotionEditorAction() {
-  override val mappingModes: Set<MappingMode> = MappingMode.N
-
-  override val keyStrokesSet: Set<List<KeyStroke>> = parseKeysSet("g`")
+class MotionGotoMarkNoSaveJumpAction : MotionActionHandler.ForEachCaret() {
+  override val motionType: MotionType = MotionType.EXCLUSIVE
 
   override val argumentType: Argument.Type = Argument.Type.CHARACTER
 
-  override val flags: EnumSet<CommandFlags> = EnumSet.of(CommandFlags.FLAG_MOT_EXCLUSIVE)
-
-  override fun makeActionHandler(): MotionActionHandler = MotionGotoMarkActionHandler
-}
-
-private object MotionGotoMarkActionHandler : MotionActionHandler.ForEachCaret() {
   override fun getOffset(editor: Editor, caret: Caret, context: DataContext, count: Int,
                          rawCount: Int, argument: Argument?): Int {
     if (argument == null) return -1

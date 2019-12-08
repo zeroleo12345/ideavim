@@ -23,9 +23,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public final class KeywordOption extends ListOption {
   @NotNull private final Pattern validationPattern;
@@ -37,14 +39,14 @@ public final class KeywordOption extends ListOption {
     super(name, abbrev, defaultValue,
           "(\\^?(([^0-9^]|[0-9]{1,3})-([^0-9]|[0-9]{1,3})|([^0-9^]|[0-9]{1,3})),)*\\^?(([^0-9^]|[0-9]{1,3})-([^0-9]|[0-9]{1,3})|([^0-9]|[0-9]{1,3})),?$");
     validationPattern = Pattern.compile(pattern);
-    set(getValue());
+    initialSet(defaultValue);
   }
 
   @Override
   public boolean append(@NotNull String val) {
     final List<String> vals = parseVals(val);
     final List<KeywordSpec> specs = valsToValidatedAndReversedSpecs(vals);
-    if (vals == null || specs == null || value == null) {
+    if (vals == null || specs == null) {
       return false;
     }
     value.addAll(vals);
@@ -57,7 +59,7 @@ public final class KeywordOption extends ListOption {
   public boolean prepend(@NotNull String val) {
     final List<String> vals = parseVals(val);
     final List<KeywordSpec> specs = valsToValidatedAndReversedSpecs(vals);
-    if (vals == null || specs == null || value == null) {
+    if (vals == null || specs == null) {
       return false;
     }
     value.addAll(0, vals);
@@ -71,7 +73,7 @@ public final class KeywordOption extends ListOption {
   public boolean remove(@NotNull String val) {
     final List<String> vals = parseVals(val);
     final List<KeywordSpec> specs = valsToValidatedAndReversedSpecs(vals);
-    if (vals == null || specs == null || value == null) {
+    if (vals == null || specs == null) {
       return false;
     }
     value.removeAll(vals);
@@ -80,11 +82,19 @@ public final class KeywordOption extends ListOption {
     return true;
   }
 
+  private void initialSet(String[] values) {
+    final List<String> vals = Arrays.asList(values);
+    final List<KeywordSpec> specs = valsToReversedSpecs(vals);
+    value = vals;
+    keywordSpecs = specs;
+    fireOptionChangeEvent();
+  }
+
   @Override
   public boolean set(@NotNull String val) {
     final List<String> vals = parseVals(val);
     final List<KeywordSpec> specs = valsToValidatedAndReversedSpecs(vals);
-    if (vals == null || specs == null || value == null) {
+    if (vals == null || specs == null) {
       return false;
     }
     value = vals;
@@ -99,6 +109,15 @@ public final class KeywordOption extends ListOption {
       value = dflt;
       set(getValue());
     }
+  }
+
+  @NotNull
+  private List<KeywordSpec> valsToReversedSpecs(@NotNull List<String> vals) {
+    final ArrayList<KeywordSpec> res = new ArrayList<>();
+    for (int i = vals.size() - 1; i >= 0; i--) {
+      res.add(new KeywordSpec(vals.get(i)));
+    }
+    return res;
   }
 
   @Nullable
@@ -173,30 +192,49 @@ public final class KeywordOption extends ListOption {
   }
 
   public boolean isKeyword(char c) {
-    final int code = (int)c;
-    if (code >= '\u0100') {
+    if ((int)c >= '\u0100') {
       return true;
     }
     for (KeywordSpec spec : keywordSpecs) {
-      if (spec.contains(code)) {
+      if (spec.contains(c)) {
         return !spec.negate();
       }
     }
     return false;
   }
 
+  // This function is used in AceJump integration plugin
+  public List<String> toRegex() {
+    return keywordSpecs.stream().map(spec -> {
+      if (spec.isAllLetters) {
+        return "\\p{L}";
+      } else if (spec.isRange) {
+        return "[" + (char)spec.rangeLow.intValue() + "-" + (char)spec.rangeHigh.intValue() + "]";
+      } else {
+        return (char)spec.rangeLow.intValue() + "";
+      }
+    }).collect(Collectors.toList());
+  }
+
   private static final class KeywordSpec {
-    private String part;
+    private final String part;
     private boolean negate;
     private boolean isRange = false;
     private boolean isAllLetters = false;
     private Integer rangeLow;
     private Integer rangeHigh;
 
+    private boolean initialized = false;
+
     public KeywordSpec(@NotNull String part) {
-
       this.part = part;
+    }
 
+    private void initializeValues() {
+      if (initialized) return;
+      initialized = true;
+
+      String part = this.part;
       negate = part.matches("^\\^.+");
 
       if (negate) {
@@ -227,7 +265,7 @@ public final class KeywordOption extends ListOption {
         return Integer.parseInt(str); // If we have a number, it represents the Unicode code point of a letter
       }
       else {
-        return (int)str.charAt(0); // If it's not a number we should only have strings consisting of one char
+        return str.charAt(0); // If it's not a number we should only have strings consisting of one char
       }
     }
 
@@ -247,14 +285,17 @@ public final class KeywordOption extends ListOption {
     }
 
     public boolean isValid() {
+      initializeValues();
       return (!isRange || isAllLetters) || (rangeLow <= rangeHigh);
     }
 
     public boolean negate() {
+      initializeValues();
       return negate;
     }
 
     public boolean contains(int code) {
+      initializeValues();
       if (isAllLetters) {
         return Character.isLetter(code);
       }

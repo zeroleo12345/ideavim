@@ -5,6 +5,8 @@ import com.intellij.ide.actions.OpenFileAction
 import com.intellij.ide.actions.ShowFilePathAction
 import com.intellij.ide.browsers.BrowserLauncher
 import com.intellij.notification.Notification
+import com.intellij.notification.NotificationDisplayType
+import com.intellij.notification.NotificationGroup
 import com.intellij.notification.NotificationListener
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
@@ -21,7 +23,6 @@ import com.maddyhome.idea.vim.ex.vimscript.VimScriptParser
 import com.maddyhome.idea.vim.key.ShortcutOwner
 import com.maddyhome.idea.vim.option.ClipboardOptionsData
 import com.maddyhome.idea.vim.option.OptionsManager
-import com.maddyhome.idea.vim.option.SelectModeOptionData
 import com.maddyhome.idea.vim.ui.VimEmulationConfigurable
 import java.io.File
 import javax.swing.KeyStroke
@@ -34,25 +35,6 @@ class NotificationService(private val project: Project?) {
   // This constructor is used to create an applicationService
   @Suppress("unused")
   constructor() : this(null)
-
-  fun notifyAboutTemplateInSelectMode() {
-    val notification = Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
-      "We recommend to add <b><code>template</code></b> to the <b><code>selectmode</code></b> option to enable <a href='#select'>select mode</a> during template editing" +
-        "<br/><code>set selectmode+=template</code></b>",
-      NotificationType.INFORMATION, NotificationListener { _, event ->
-      if (event.description == "#select") {
-        BrowserLauncher.instance.open(selectModeUrl)
-      }
-    })
-
-    notification.addAction(OpenIdeaVimRcAction(notification))
-
-    notification.addAction(AppendToIdeaVimRcAction(notification, "set selectmode+=template", "template") { OptionsManager.selectmode.append(SelectModeOptionData.template) })
-
-    notification.addAction(HelpLink(notification, selectModeUrl))
-
-    notification.notify(project)
-  }
 
   fun notifyAboutIdeaPut() {
     val notification = Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
@@ -79,29 +61,13 @@ class NotificationService(private val project: Project?) {
     notification.notify(project)
   }
 
-  private fun createIdeaVimRcManually(message: String) {
-    val notification = Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE, message, NotificationType.WARNING)
-    var actionName = if (SystemInfo.isMac) "Reveal Home in Finder" else "Show Home in " + ShowFilePathAction.getFileManagerName()
-    if (!File(System.getProperty("user.home")).exists()) {
-      actionName = ""
-    }
-    notification.addAction(object : AnAction(actionName) {
-      override fun actionPerformed(e: AnActionEvent) {
-        val homeDir = File(System.getProperty("user.home"))
-        ShowFilePathAction.openDirectory(homeDir)
-        notification.expire()
-      }
-    })
-    notification.notify(project)
-  }
-
   fun enableRepeatingMode() = Messages.showYesNoDialog("Do you want to enable repeating keys in Mac OS X on press and hold?\n\n" +
     "(You can do it manually by running 'defaults write -g " +
     "ApplePressAndHoldEnabled 0' in the console).", IDEAVIM_NOTIFICATION_TITLE,
     Messages.getQuestionIcon())
 
   fun specialKeymap(keymap: Keymap, listener: NotificationListener.Adapter) {
-    Notification(IDEAVIM_STICKY_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
+    IDEAVIM_STICKY_GROUP.createNotification(IDEAVIM_NOTIFICATION_TITLE,
       "IdeaVim plugin doesn't use the special \"Vim\" keymap any longer. " +
         "Switching to \"${keymap.presentableName}\" keymap.<br/><br/>" +
         "Now it is possible to set up:<br/>" +
@@ -112,7 +78,7 @@ class NotificationService(private val project: Project?) {
         "</ul>", NotificationType.INFORMATION, listener).notify(project)
   }
 
-  fun noVimrcAsDefault() = Notification(IDEAVIM_STICKY_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
+  fun noVimrcAsDefault() = IDEAVIM_STICKY_GROUP.createNotification(IDEAVIM_NOTIFICATION_TITLE, "",
     "The ~/.vimrc file is no longer read by default, use ~/.ideavimrc instead. You can read it from your " +
       "~/.ideavimrc using this command:<br/><br/>" +
       "<code>source ~/.vimrc</code>", NotificationType.INFORMATION).notify(project)
@@ -141,7 +107,25 @@ class NotificationService(private val project: Project?) {
       listener).notify(project)
   }
 
-  private inner class OpenIdeaVimRcAction(val notification: Notification) : AnAction("Open ~/.ideavimrc") {
+  fun notifyFailedToDownloadEap() {
+    Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
+      """Failed to update IdeaVim to the EAP version. Please update the plugin manually.""",
+      NotificationType.ERROR).notify(project)
+  }
+
+  fun notifySubscribedToEap() {
+    Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
+      """You are successfully subscribed to IdeaVim EAP releases.""",
+      NotificationType.INFORMATION).notify(project)
+  }
+
+  fun notifyEapFinished() {
+    Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE,
+      """You have finished the Early Access Program. Please reinstall IdeaVim to get the stable version.""",
+      NotificationType.INFORMATION).notify(project)
+  }
+
+  class OpenIdeaVimRcAction(private val notification: Notification?) : AnAction("Open ~/.ideavimrc") {
     override fun actionPerformed(e: AnActionEvent) {
       val eventProject = e.project
       if (eventProject != null) {
@@ -152,8 +136,8 @@ class NotificationService(private val project: Project?) {
           return
         }
       }
-      notification.expire()
-      createIdeaVimRcManually("Cannot create configuration file.<br/>Please create <code>~/.ideavimrc</code> manually")
+      notification?.expire()
+      createIdeaVimRcManually("Cannot create configuration file.<br/>Please create <code>~/.ideavimrc</code> manually", eventProject)
     }
   }
 
@@ -173,7 +157,7 @@ class NotificationService(private val project: Project?) {
         }
       }
       notification.expire()
-      createIdeaVimRcManually("Option is enabled, but the file is not modified<br/>Please modify <code>~/.ideavimrc</code> manually")
+      createIdeaVimRcManually("Option is enabled, but the file is not modified<br/>Please modify <code>~/.ideavimrc</code> manually", project)
     }
   }
 
@@ -185,10 +169,26 @@ class NotificationService(private val project: Project?) {
   }
 
   companion object {
-    const val IDEAVIM_STICKY_NOTIFICATION_ID = "ideavim-sticky"
+    val IDEAVIM_STICKY_GROUP = NotificationGroup("ideavim-sticky", NotificationDisplayType.STICKY_BALLOON, false)
     const val IDEAVIM_NOTIFICATION_ID = "ideavim"
     const val IDEAVIM_NOTIFICATION_TITLE = "IdeaVim"
     const val ideajoinExamplesUrl = "https://github.com/JetBrains/ideavim/wiki/%60ideajoin%60-examples"
     const val selectModeUrl = "https://vimhelp.org/visual.txt.html#Select-mode"
+
+    private fun createIdeaVimRcManually(message: String, project: Project?) {
+      val notification = Notification(IDEAVIM_NOTIFICATION_ID, IDEAVIM_NOTIFICATION_TITLE, message, NotificationType.WARNING)
+      var actionName = if (SystemInfo.isMac) "Reveal Home in Finder" else "Show Home in " + ShowFilePathAction.getFileManagerName()
+      if (!File(System.getProperty("user.home")).exists()) {
+        actionName = ""
+      }
+      notification.addAction(object : AnAction(actionName) {
+        override fun actionPerformed(e: AnActionEvent) {
+          val homeDir = File(System.getProperty("user.home"))
+          ShowFilePathAction.openDirectory(homeDir)
+          notification.expire()
+        }
+      })
+      notification.notify(project)
+    }
   }
 }

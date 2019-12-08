@@ -26,6 +26,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.LightVirtualFile;
 import com.maddyhome.idea.vim.common.IndentConfig;
 import com.maddyhome.idea.vim.common.TextRange;
+import com.maddyhome.idea.vim.ui.ExEntryPanel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,6 +35,8 @@ import java.nio.CharBuffer;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+
+import static java.lang.Integer.max;
 
 /**
  * This is a set of helper methods for working with editors. All line and column values are zero based.
@@ -668,9 +671,17 @@ public class EditorHelper {
   public static boolean scrollVisualLineToBottomOfScreen(@NotNull Editor editor, int visualLine) {
     final ScrollingModel scrollingModel = editor.getScrollingModel();
     int inlayHeight = getHeightOfVisualLineInlays(editor, visualLine, false);
+    int exPanelHeight = 0;
+    int exPanelWithoutShortcutsHeight = 0;
+    if (ExEntryPanel.getInstance().isActive()) {
+      exPanelHeight = ExEntryPanel.getInstance().getHeight();
+    }
+    if (ExEntryPanel.getInstanceWithoutShortcuts().isActive()) {
+      exPanelWithoutShortcutsHeight = ExEntryPanel.getInstanceWithoutShortcuts().getHeight();
+    }
     int y = editor.visualLineToY(visualLine);
     int verticalPos = scrollingModel.getVerticalScrollOffset();
-    int height = inlayHeight + editor.getLineHeight();
+    int height = inlayHeight + editor.getLineHeight() + exPanelHeight + exPanelWithoutShortcutsHeight;
 
     Rectangle visibleArea = scrollingModel.getVisibleArea();
 
@@ -705,7 +716,10 @@ public class EditorHelper {
     final LogicalPosition logicalPosition = caret.getLogicalPosition();
     final int lastColumn = EditorHelper.lastColumnForLine(editor, logicalPosition.line, CommandStateHelper.isEndAllowed(CommandStateHelper.getMode(editor)));
     if (pos.column != lastColumn) {
-      return pos.column;
+      int lColumn = pos.column;
+      int startOffset = editor.getDocument().getLineStartOffset(logicalPosition.line);
+      lColumn -= max(0, editor.getInlayModel().getInlineElementsInRange(startOffset, caret.getOffset()).size());
+      return lColumn;
     } else {
       return UserDataManager.getVimLastColumn(caret);
     }
@@ -715,7 +729,15 @@ public class EditorHelper {
     VisualPosition pos = caret.getVisualPosition();
     final LogicalPosition logicalPosition = caret.getLogicalPosition();
     final int lastColumn = EditorHelper.lastColumnForLine(editor, logicalPosition.line, CommandStateHelper.isEndAllowed(CommandStateHelper.getMode(editor)));
-    int targetColumn = pos.column != lastColumn ? pos.column : prevLastColumn;
+    int targetColumn;
+    if (pos.column != lastColumn) {
+      targetColumn = pos.column;
+      int startOffset = editor.getDocument().getLineStartOffset(logicalPosition.line);
+      targetColumn -= max(0, editor.getInlayModel().getInlineElementsInRange(startOffset, caret.getOffset()).size());
+    }
+    else {
+      targetColumn = prevLastColumn;
+    }
     UserDataManager.setVimLastColumn(caret, targetColumn);
   }
 

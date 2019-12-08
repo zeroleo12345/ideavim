@@ -18,27 +18,29 @@
 
 package com.maddyhome.idea.vim.command
 
+enum class MotionType {
+  INCLUSIVE,
+  EXCLUSIVE
+}
+
 enum class CommandFlags {
   /**
    * Motion flags
+   *
+   * TODO it should be only INCLUSIVE, EXCLUSIVE and LINEWISE motions. Should be moved to [MotionType]
    */
   FLAG_MOT_LINEWISE,
   FLAG_MOT_CHARACTERWISE,
   FLAG_MOT_BLOCKWISE,
-  FLAG_MOT_INCLUSIVE,
-  FLAG_MOT_EXCLUSIVE,
   /**
    * Indicates that the cursor position should be saved prior to this motion command
    */
   FLAG_SAVE_JUMP,
   /**
-   * Special flag that says this is characterwise only for visual mode
+   * A special command flag indicating that the inserted text after this command will not be repeated.
+   * Example: `2i123` will insert `123123`, but `2s123` will insert `123`
    */
-  FLAG_VISUAL_CHARACTERWISE,
-  /**
-   * Special command flag that indicates it is not to be repeated
-   */
-  FLAG_NO_REPEAT,
+  FLAG_NO_REPEAT_INSERT,
   /**
    * This insert command should clear all saved keystrokes from the current insert
    */
@@ -49,10 +51,8 @@ enum class CommandFlags {
   FLAG_SAVE_STROKE,
   FLAG_IGNORE_SCROLL_JUMP,
   FLAG_IGNORE_SIDE_SCROLL_JUMP,
-  /**
-   * Indicates a command can accept a count in mid command
-   */
-  FLAG_ALLOW_MID_COUNT,
+
+  //TODO REMOVE!
   /**
    * Search Flags
    */
@@ -63,10 +63,6 @@ enum class CommandFlags {
    */
   FLAG_EXIT_VISUAL,
   /**
-   * Special flag used for any mappings involving operators
-   */
-  FLAG_OP_PEND,
-  /**
    * This command starts a multi-command undo transaction
    */
   FLAG_MULTIKEY_UNDO,
@@ -74,10 +70,7 @@ enum class CommandFlags {
    * This command should be followed by another command
    */
   FLAG_EXPECT_MORE,
-  /**
-   * This flag indicates the command's argument isn't used while recording
-   */
-  FLAG_NO_ARG_RECORDING,
+
   /**
    * Indicate that the character argument may come from a digraph
    */
