@@ -5,3 +5,4 @@
 /out/
 /tmp/
 local.properties
+.DS_Store
