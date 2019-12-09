@@ -19,6 +19,7 @@ package com.maddyhome.idea.vim.action.change
 
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
+import com.maddyhome.idea.vim.KeyHandler
 import com.maddyhome.idea.vim.action.ComplicatedKeysAction
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.handler.VimActionHandler
@@ -35,5 +36,11 @@ class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
 
   override val type: Command.Type = Command.Type.OTHER_SELF_SYNCHRONIZED
 
-  override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean = undo(context)
+  override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean {
+    val ret = undo(context)
+    if (ret) {
+      KeyHandler.executeAction("EditorEscape", context)
+    }
+    return ret
+  }
 }
