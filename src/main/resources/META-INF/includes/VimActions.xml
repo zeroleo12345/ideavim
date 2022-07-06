@@ -11,7 +11,11 @@
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastColumnAction" mappingModes="NXO" keys="$"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastColumnInsertAction" mappingModes="I" keys="«End»"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastScreenColumnAction" mappingModes="NXO" keys="g$,g«End»"/>
+
+    <!-- 修改后 -->
+    <!--
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastMatchCharAction" mappingModes="NXO" keys=";"/>
+    -->
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastMatchCharReverseAction" mappingModes="NXO" keys="«COMMA»"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLastNonSpaceAction" mappingModes="NXO" keys="g_"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.motion.leftright.MotionLeftAction" mappingModes="NXO" keys="h"/>
@@ -263,6 +267,10 @@
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.PutTextAfterCursorActionMoveCursor" mappingModes="N" keys="gp"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.PutTextBeforeCursorActionMoveCursor" mappingModes="N" keys="gP"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.YankLineAction" mappingModes="N" keys="Y"/>
+
+    <!-- 修改后: 抄YankLineAction -->
+    <vimAction implementation="com.maddyhome.idea.vim.action.copy.YankToClipboard" mappingModes="N" keys=";"/>
+
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.YankMotionAction" mappingModes="N" keys="y"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.YankVisualAction" mappingModes="X" keys="y"/>
     <vimAction implementation="com.maddyhome.idea.vim.action.copy.YankVisualLinesAction" mappingModes="X" keys="Y"/>
