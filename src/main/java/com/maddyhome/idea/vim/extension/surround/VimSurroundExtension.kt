@@ -73,7 +73,7 @@ class VimSurroundExtension : VimExtension {
       putKeyMappingIfMissing(MappingMode.N, StringHelper.parseKeys("ds"), owner, StringHelper.parseKeys("<Plug>DSurround"), true)
       putKeyMappingIfMissing(MappingMode.XO, StringHelper.parseKeys("S"), owner, StringHelper.parseKeys("<Plug>VSurround"), true)
       // 修改后
-      setOperatorFunction(new Operator());
+      setOperatorFunction(Operator());
     }
   }
 
