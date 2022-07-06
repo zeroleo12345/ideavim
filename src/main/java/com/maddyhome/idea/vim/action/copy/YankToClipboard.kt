@@ -24,6 +24,7 @@ import com.intellij.openapi.editor.Editor
 import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.handler.VimActionHandler
+import com.maddyhome.idea.vim.command.OperatorArguments
 import com.maddyhome.idea.vim.ui.ClipboardHandler
 
 
@@ -31,7 +32,7 @@ class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: class Y
 
   override val type: Command.Type = Command.Type.COPY
 
-  override fun execute(editor: Editor, context: DataContext, cmd: Command): Boolean {
+  override fun execute(editor: Editor, context: DataContext, cmd: Command, operatorArguments: OperatorArguments): Boolean {
     val register = VimPlugin.getRegister()
     val systemRegister = register.getRegister(register.defaultRegister)
     if (systemRegister != null) {
