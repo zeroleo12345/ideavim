@@ -19,12 +19,11 @@ package com.maddyhome.idea.vim.action.change
 
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.editor.Editor
-import com.maddyhome.idea.vim.KeyHandler
+import com.maddyhome.idea.vim.helper.ActionExecutor
 import com.maddyhome.idea.vim.action.ComplicatedKeysAction
 import com.maddyhome.idea.vim.newapi.ExecutionContext
 import com.maddyhome.idea.vim.newapi.VimEditor
-import com.maddyhome.idea.vim.newapi.injector
-import static com.maddyhome.idea.vim.helper.StringHelper.parseKeys;
+import com.maddyhome.idea.vim.helper.StringHelper.parseKeys
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.OperatorArguments
 import com.maddyhome.idea.vim.handler.VimActionHandler
@@ -35,7 +34,7 @@ import javax.swing.KeyStroke
 
 class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
   override val keyStrokesSet: Set<List<KeyStroke>> = setOf(
-    injector.parser.parseKeys("u"),
+    parseKeys("u"),
     listOf(KeyStroke.getKeyStroke(KeyEvent.VK_UNDO, 0))
   )
 
@@ -43,12 +42,12 @@ class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
 
   override fun execute(editor: Editor, context: DataContext, cmd: Command, operatorArguments: OperatorArguments): Boolean {
     var count = operatorArguments.count1
-    var result = injector.undo.undo(context)
+    var result = undo(context)
     while ((--count > 0) && result) {
-      result = injector.undo.undo(context)
+      result = undo(context)
     }
     if (result) {
-      KeyHandler.executeAction("EditorEscape", context)
+      ActionExecutor.executeAction("EditorEscape", context);
     }
     return result
   }

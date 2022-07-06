@@ -24,7 +24,7 @@ import com.maddyhome.idea.vim.VimPlugin
 import com.maddyhome.idea.vim.newapi.ExecutionContext
 import com.maddyhome.idea.vim.newapi.VimCaret
 import com.maddyhome.idea.vim.newapi.VimEditor
-import com.maddyhome.idea.vim.newapi.injector
+import com.maddyhome.idea.vim.helper.StringHelper.parseKeys
 import com.maddyhome.idea.vim.command.MappingMode
 import com.maddyhome.idea.vim.command.SelectionType
 import com.maddyhome.idea.vim.command.VimStateMachine
@@ -67,17 +67,17 @@ class VimSurroundExtension : VimExtension {
   private val NO_MAPPINGS = "surround_no_mappings"
 
   override fun init() {
-    putExtensionHandlerMapping(MappingMode.N, injector.parser.parseKeys("<Plug>YSurround"), owner, YSurroundHandler(), false)
-    putExtensionHandlerMapping(MappingMode.N, injector.parser.parseKeys("<Plug>CSurround"), owner, CSurroundHandler(), false)
-    putExtensionHandlerMapping(MappingMode.N, injector.parser.parseKeys("<Plug>DSurround"), owner, DSurroundHandler(), false)
-    putExtensionHandlerMapping(MappingMode.XO, injector.parser.parseKeys("<Plug>VSurround"), owner, VSurroundHandler(), false)
+    putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>YSurround"), owner, YSurroundHandler(), false)
+    putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>CSurround"), owner, CSurroundHandler(), false)
+    putExtensionHandlerMapping(MappingMode.N, parseKeys("<Plug>DSurround"), owner, DSurroundHandler(), false)
+    putExtensionHandlerMapping(MappingMode.XO, parseKeys("<Plug>VSurround"), owner, VSurroundHandler(), false)
 
     val noMappings = VimPlugin.getVariableService().getGlobalVariableValue(NO_MAPPINGS)?.asBoolean() ?: false
     if (!noMappings) {
-      putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("ys"), owner, injector.parser.parseKeys("<Plug>YSurround"), true)
-      putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("cs"), owner, injector.parser.parseKeys("<Plug>CSurround"), true)
-      putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("ds"), owner, injector.parser.parseKeys("<Plug>DSurround"), true)
-      putKeyMappingIfMissing(MappingMode.XO, injector.parser.parseKeys("S"), owner, injector.parser.parseKeys("<Plug>VSurround"), true)
+      putKeyMappingIfMissing(MappingMode.N, parseKeys("ys"), owner, parseKeys("<Plug>YSurround"), true)
+      putKeyMappingIfMissing(MappingMode.N, parseKeys("cs"), owner, parseKeys("<Plug>CSurround"), true)
+      putKeyMappingIfMissing(MappingMode.N, parseKeys("ds"), owner, parseKeys("<Plug>DSurround"), true)
+      putKeyMappingIfMissing(MappingMode.XO, parseKeys("S"), owner, parseKeys("<Plug>VSurround"), true)
       // [ADDED] feature: 支持 nmap S g@iw, 因为setOperatorFunction(new Operator()) 位置导致重置map自定义映射
       setOperatorFunction(new Operator());
     }
@@ -88,7 +88,7 @@ class VimSurroundExtension : VimExtension {
 
     override fun execute(editor: VimEditor, context: ExecutionContext) {
       // setOperatorFunction(Operator())
-      executeNormalWithoutMapping(injector.parser.parseKeys("g@"), editor.ij)
+      executeNormalWithoutMapping(parseKeys("g@"), editor.ij)
     }
   }
 
@@ -101,7 +101,7 @@ class VimSurroundExtension : VimExtension {
       }
       runWriteAction {
         // Leave visual mode
-        executeNormalWithoutMapping(injector.parser.parseKeys("<Esc>"), editor.ij)
+        executeNormalWithoutMapping(parseKeys("<Esc>"), editor.ij)
         editor.ij.caretModel.moveToOffset(selectionStart)
       }
     }
@@ -165,7 +165,7 @@ class VimSurroundExtension : VimExtension {
         surroundings
           .filter { it.innerText != null } // we do nothing with carets that are not inside the surrounding
           .map { surrounding ->
-            val innerValue = injector.parser.toPrintableString(surrounding.innerText!!)
+            val innerValue = toPrintableString(surrounding.innerText!!)
             val text = newSurround?.let { it.first + innerValue + it.second } ?: innerValue
             val textData = PutData.TextData(text, SelectionType.CHARACTER_WISE, emptyList())
             val putData = PutData(textData, null, 1, insertTextBeforeCaret = !surrounding.isLineEnd, rawIndent = true, caretAfterInsertedText = false)
@@ -186,7 +186,7 @@ class VimSurroundExtension : VimExtension {
 
       private fun perform(sequence: String, editor: Editor) {
         ClipboardOptionHelper.IdeaputDisabler()
-          .use { executeNormalWithoutMapping(injector.parser.parseKeys("\"" + REGISTER + sequence), editor) }
+          .use { executeNormalWithoutMapping(parseKeys("\"" + REGISTER + sequence), editor) }
       }
 
       private fun pick(charFrom: Char) = when (charFrom) {
@@ -236,7 +236,7 @@ class VimSurroundExtension : VimExtension {
         change.insertText(IjVimEditor(editor), IjVimCaret(primaryCaret), range.startOffset, leftSurround)
         change.insertText(IjVimEditor(editor), IjVimCaret(primaryCaret), range.endOffset + leftSurround.length, pair.second)
         // Jump back to start
-        executeNormalWithoutMapping(injector.parser.parseKeys("`["), editor)
+        executeNormalWithoutMapping(parseKeys("`["), editor)
       }
       return true
     }
