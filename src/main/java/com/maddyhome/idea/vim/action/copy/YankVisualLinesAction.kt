@@ -75,7 +75,7 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     val selection = if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
     return VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
      */
-    // 修改: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
+    // 修改后: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
     val mode = CommandState.getInstance(editor).getSubMode();
     val selection = SelectionType.fromSubMode(mode);
 
