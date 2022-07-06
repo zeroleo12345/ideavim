@@ -26,7 +26,6 @@ import com.maddyhome.idea.vim.command.CommandState
 import com.maddyhome.idea.vim.newapi.ExecutionContext
 import com.maddyhome.idea.vim.newapi.VimCaret
 import com.maddyhome.idea.vim.newapi.VimEditor
-import com.maddyhome.idea.vim.newapi.injector
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.CommandFlags
 import com.maddyhome.idea.vim.command.OperatorArguments
@@ -74,13 +73,13 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     // 修改前
     /*
     val selection = if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
-    return injector.yank.yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    return VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
      */
     // 修改: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
     val mode = CommandState.getInstance(editor).getSubMode();
     val selection = SelectionType.fromSubMode(mode);
 
-    val ret = injector.yank.yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    val ret = VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
     val register = VimPlugin.getRegister()
     val systemRegister = register.getRegister(register.defaultRegister)
     if (systemRegister != null) {
