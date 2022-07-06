@@ -76,9 +76,8 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     return VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
      */
     // 修改后: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
-    CommandState commandState = CommandState.getInstance(editor);
-    val mode = commandState.getMode();
-    val selection = SelectionType.fromSubMode(mode);
+    val commandState = CommandState.getInstance(editor)
+    val selection = SelectionType.fromSubMode(commandState.subMode)
 
     val ret = VimPlugin.getYank().yankRange(editor, TextRange(startsArray, endsArray), selection, true)
     val register = VimPlugin.getRegister()
