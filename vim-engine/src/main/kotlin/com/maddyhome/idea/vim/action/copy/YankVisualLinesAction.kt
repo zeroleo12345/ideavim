@@ -20,6 +20,7 @@ import com.maddyhome.idea.vim.group.visual.VimSelection
 import com.maddyhome.idea.vim.handler.VisualOperatorActionHandler
 import com.maddyhome.idea.vim.helper.enumSetOf
 import java.util.*
+import com.maddyhome.idea.vim.command.VimStateMachine.Companion.getInstance
 
 /**
  * @author vlan
@@ -27,7 +28,12 @@ import java.util.*
 class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
   override val type: Command.Type = Command.Type.COPY
 
+  // 修改前
+  /*
   override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_LINEWISE, CommandFlags.FLAG_EXIT_VISUAL)
+  */
+  // 修改后
+  override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_EXIT_VISUAL)
 
   override fun executeForAllCarets(
     editor: VimEditor,
@@ -48,8 +54,26 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     val startsArray = starts.toIntArray()
     val endsArray = ends.toIntArray()
 
+    // 修改前
+    /*
     val selection =
       if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
     return injector.yank.yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    */
+    // 修改后: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
+    val commandState = getInstance(editor)
+    val selection = SelectionType.fromSubMode(commandState.subMode)
+
+    val ret = injector.yank.yankRange(editor, TextRange(startsArray, endsArray), selection, true)
+    val register = injector.registerGroup
+    val systemRegister = register.getRegister(register.defaultRegister)
+    if (systemRegister != null) {
+        val text = systemRegister.text
+        if (text != null) {
+          val transferableData: List<Any> = ArrayList()
+          injector.clipboardManager.setClipboardText(text, text, ArrayList(transferableData))
+        }
+    }
+    return ret
   }
 }

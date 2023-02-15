@@ -69,6 +69,8 @@ class VimSurroundExtension : VimExtension {
       putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("cs"), owner, injector.parser.parseKeys("<Plug>CSurround"), true)
       putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("ds"), owner, injector.parser.parseKeys("<Plug>DSurround"), true)
       putKeyMappingIfMissing(MappingMode.XO, injector.parser.parseKeys("S"), owner, injector.parser.parseKeys("<Plug>VSurround"), true)
+      // 修改后
+      setOperatorFunction(Operator());
     }
   }
 
@@ -76,7 +78,10 @@ class VimSurroundExtension : VimExtension {
     override val isRepeatable = true
 
     override fun execute(editor: VimEditor, context: ExecutionContext, operatorArguments: OperatorArguments) {
+      // 修改后
+      /*
       setOperatorFunction(Operator())
+      */
       executeNormalWithoutMapping(injector.parser.parseKeys("g@"), editor.ij)
     }
   }

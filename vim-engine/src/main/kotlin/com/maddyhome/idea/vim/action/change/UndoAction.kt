@@ -16,6 +16,7 @@ import com.maddyhome.idea.vim.command.OperatorArguments
 import com.maddyhome.idea.vim.handler.VimActionHandler
 import java.awt.event.KeyEvent
 import javax.swing.KeyStroke
+//import com.maddyhome.idea.vim.helper.ActionExecutor
 
 class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
   override val keyStrokesSet: Set<List<KeyStroke>> = setOf(
@@ -36,6 +37,9 @@ class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAction {
     while ((--count > 0) && result) {
       result = injector.undo.undo(editor, context)
     }
+//    if (result) {
+//      ActionExecutor.executeAction("EditorEscape", context);
+//    }
     return result
   }
 }
