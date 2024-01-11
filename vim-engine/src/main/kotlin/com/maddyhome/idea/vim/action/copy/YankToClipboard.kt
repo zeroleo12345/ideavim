@@ -1,0 +1,41 @@
+/*
+ * Copyright 2003-2024 The IdeaVim authors
+ *
+ * Use of this source code is governed by an MIT-style
+ * license that can be found in the LICENSE.txt file or at
+ * https://opensource.org/licenses/MIT.
+ */
+
+package com.maddyhome.idea.vim.action.copy
+
+import com.maddyhome.idea.vim.api.ExecutionContext
+import com.maddyhome.idea.vim.api.VimEditor
+import com.maddyhome.idea.vim.api.injector
+import com.maddyhome.idea.vim.command.Command
+import com.maddyhome.idea.vim.command.OperatorArguments
+import com.maddyhome.idea.vim.handler.VimActionHandler
+
+
+public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: class YankLineAction
+
+  override val type: Command.Type = Command.Type.COPY
+
+  override fun execute(
+    editor: VimEditor,
+    context: ExecutionContext,
+    cmd: Command,
+    operatorArguments: OperatorArguments,
+  ): Boolean {
+    val register = injector.registerGroup
+    val systemRegister = register.getRegister(register.defaultRegister)
+    if (systemRegister != null) {
+      val text = systemRegister.text
+      if (text != null) {
+        val transferableData: List<Any> = ArrayList()
+        injector.clipboardManager.setClipboardText(text, text, ArrayList(transferableData))
+        return true
+      }
+    }
+    return false
+  }
+}
