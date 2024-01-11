@@ -39,6 +39,9 @@ public class UndoAction : VimActionHandler.SingleExecution(), ComplicatedKeysAct
     while ((--count > 0) && result) {
       result = injector.undo.undo(editor, context)
     }
+    if (result) {
+      injector.actionExecutor.executeAction("EditorEscape", context)
+    }
     return result
   }
 }
