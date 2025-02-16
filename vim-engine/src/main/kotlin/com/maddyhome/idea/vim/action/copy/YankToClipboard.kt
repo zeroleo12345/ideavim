@@ -16,6 +16,8 @@ import com.maddyhome.idea.vim.api.injector
 import com.maddyhome.idea.vim.command.Command
 import com.maddyhome.idea.vim.command.OperatorArguments
 import com.maddyhome.idea.vim.handler.VimActionHandler
+import com.maddyhome.idea.vim.diagnostic.debug
+import com.maddyhome.idea.vim.diagnostic.vimLogger
 
 @CommandOrMotion(keys = [";"], modes = [Mode.NORMAL])
 public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: class YankLineAction
@@ -28,6 +30,7 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
     cmd: Command,
     operatorArguments: OperatorArguments,
   ): Boolean {
+    logger.debug { "YankToClipboard execute" } // 抄袭类: ChangeCharacterAction
     val register = injector.registerGroup
     val systemRegister = register.getRegister(register.defaultRegister)
     if (systemRegister != null) {
@@ -41,3 +44,5 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
     return false
   }
 }
+
+private val logger = vimLogger<YankToClipboard>()
