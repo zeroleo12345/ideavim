@@ -91,6 +91,11 @@
     },
     {
         "keys": ";",
+        "class": "com.maddyhome.idea.vim.action.copy.YankToClipboard",
+        "modes": "N"
+    },
+    {
+        "keys": ";",
         "class": "com.maddyhome.idea.vim.action.motion.leftright.MotionLastMatchCharAction",
         "modes": "NXO"
     },
