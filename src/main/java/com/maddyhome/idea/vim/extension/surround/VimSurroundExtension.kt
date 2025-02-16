@@ -33,7 +33,9 @@ import com.maddyhome.idea.vim.extension.VimExtensionFacade.inputString
 import com.maddyhome.idea.vim.extension.VimExtensionFacade.putExtensionHandlerMapping
 import com.maddyhome.idea.vim.extension.VimExtensionFacade.putKeyMappingIfMissing
 import com.maddyhome.idea.vim.extension.VimExtensionFacade.setRegisterForCaret
+import com.maddyhome.idea.vim.extension.exchange.VimExchangeExtension
 import com.maddyhome.idea.vim.extension.exportOperatorFunction
+import com.maddyhome.idea.vim.extension.replacewithregister.ReplaceWithRegister
 import com.maddyhome.idea.vim.group.findBlockRange
 import com.maddyhome.idea.vim.helper.exitVisualMode
 import com.maddyhome.idea.vim.key.OperatorFunction
@@ -77,6 +79,9 @@ internal class VimSurroundExtension : VimExtension {
       putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("cs"), owner, injector.parser.parseKeys("<Plug>CSurround"), true)
       putKeyMappingIfMissing(MappingMode.N, injector.parser.parseKeys("ds"), owner, injector.parser.parseKeys("<Plug>DSurround"), true)
       putKeyMappingIfMissing(MappingMode.XO, injector.parser.parseKeys("S"), owner, injector.parser.parseKeys("<Plug>VSurround"), true)
+      // 修改后
+      // [ADDED] feature: 支持 nmap S g@iw, 因为setOperatorFunction(new Operator()) 位置导致重置map自定义映射
+      VimExtensionFacade.exportOperatorFunction(OPERATOR_FUNC, Operator())
     }
 
     VimExtensionFacade.exportOperatorFunction(OPERATOR_FUNC, Operator())
@@ -86,7 +91,10 @@ internal class VimSurroundExtension : VimExtension {
     override val isRepeatable = true
 
     override fun execute(editor: VimEditor, context: ExecutionContext, operatorArguments: OperatorArguments) {
+      // 修改后
+      /*
       injector.globalOptions().operatorfunc = OPERATOR_FUNC
+      */
       executeNormalWithoutMapping(injector.parser.parseKeys("g@"), editor.ij)
     }
   }
