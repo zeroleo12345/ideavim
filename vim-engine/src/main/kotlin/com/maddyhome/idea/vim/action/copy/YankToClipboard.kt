@@ -30,6 +30,7 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
     cmd: Command,
     operatorArguments: OperatorArguments,
   ): Boolean {
+    // 修改后
     logger.debug { "YankToClipboard execute" } // 抄袭类: ChangeCharacterAction
     val register = injector.registerGroup
     val systemRegister = register.getRegister(register.defaultRegister)
