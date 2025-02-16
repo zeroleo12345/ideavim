@@ -5,7 +5,6 @@
  * license that can be found in the LICENSE.txt file or at
  * https://opensource.org/licenses/MIT.
  */
-
 package com.maddyhome.idea.vim.action.copy
 
 import com.intellij.vim.annotations.CommandOrMotion
@@ -21,6 +20,7 @@ import com.maddyhome.idea.vim.diagnostic.vimLogger
 
 @CommandOrMotion(keys = [";"], modes = [Mode.NORMAL])
 public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: class YankLineAction
+  private val logger = vimLogger<YankToClipboard>()
 
   override val type: Command.Type = Command.Type.COPY
 
@@ -31,7 +31,7 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
     operatorArguments: OperatorArguments,
   ): Boolean {
     // 修改后
-    logger.debug { "YankToClipboard execute" } // 抄袭类: ChangeCharacterAction
+    this.logger.debug { "YankToClipboard execute" } // 从磁盘重新安装插件可生效, 注意需删热键 ; 映射动作 MotionLastMatchCharAction
     val register = injector.registerGroup
     val systemRegister = register.getRegister(register.defaultRegister)
     if (systemRegister != null) {
@@ -45,5 +45,3 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
     return false
   }
 }
-
-private val logger = vimLogger<YankToClipboard>()

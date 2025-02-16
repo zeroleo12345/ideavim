@@ -95,11 +95,6 @@
         "modes": "N"
     },
     {
-        "keys": ";",
-        "class": "com.maddyhome.idea.vim.action.motion.leftright.MotionLastMatchCharAction",
-        "modes": "NXO"
-    },
-    {
         "keys": "<",
         "class": "com.maddyhome.idea.vim.action.change.shift.ShiftLeftMotionAction",
         "modes": "N"

@@ -19,7 +19,6 @@ import com.maddyhome.idea.vim.command.OperatorArguments
 import com.maddyhome.idea.vim.handler.Motion
 import com.maddyhome.idea.vim.handler.MotionActionHandler
 
-@CommandOrMotion(keys = [";"], modes = [Mode.NORMAL, Mode.VISUAL, Mode.OP_PENDING])
 class MotionLastMatchCharAction : MotionLastMatchCharActionBase(MotionType.INCLUSIVE, reverse = false)
 
 @CommandOrMotion(keys = [","], modes = [Mode.NORMAL, Mode.VISUAL, Mode.OP_PENDING])
