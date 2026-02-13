@@ -31,6 +31,10 @@ class UndoAction : VimActionHandler.SingleExecution() {
     while ((--count > 0) && result) {
       result = injector.undo.undo(editor, context)
     }
+    // 修改后
+    if (result) {
+      injector.actionExecutor.executeAction(editor, "EditorEscape", context)
+    }
     injector.scroll.scrollCaretIntoView(editor)
     return result
   }

@@ -30,7 +30,10 @@ import java.util.*
 class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
   override val type: Command.Type = Command.Type.COPY
 
+  // 修改后
+  /*
   override val flags: EnumSet<CommandFlags> = enumSetOf(CommandFlags.FLAG_MOT_LINEWISE)
+  */
 
   override fun executeForAllCarets(
     editor: VimEditor,
@@ -51,8 +54,22 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     val startsArray = starts.toIntArray()
     val endsArray = ends.toIntArray()
 
+    /*
     val selection =
       if (vimSelection.type == SelectionType.BLOCK_WISE) SelectionType.BLOCK_WISE else SelectionType.LINE_WISE
     return injector.yank.yankRange(editor, context, TextRange(startsArray, endsArray), selection, true)
+    */
+    // 修改后: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
+    val ret = injector.yank.yankRange(editor, context, TextRange(startsArray, endsArray), SelectionType.BLOCK_WISE, true)
+    val registerService = injector.registerGroup
+    val systemRegister = registerService.getRegister(registerService.defaultRegister)
+    if (systemRegister != null) {
+      val text = systemRegister.text
+      if (text != null) {
+        val transferableData: List<Any> = ArrayList()
+        injector.clipboardManager.setClipboardText(text, text, ArrayList(transferableData))
+      }
+    }
+    return ret
   }
 }
