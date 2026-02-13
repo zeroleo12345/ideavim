@@ -32,8 +32,8 @@ public class YankToClipboard : VimActionHandler.SingleExecution() {  // 抄类: 
   ): Boolean {
     // 修改后
     this.logger.debug { "YankToClipboard execute" } // 从磁盘重新安装插件可生效, 注意需删热键 ; 映射动作 MotionLastMatchCharAction
-    val register = injector.registerGroup
-    val systemRegister = register.getRegister(register.defaultRegister)
+    val registerService = injector.registerGroup
+    val systemRegister = registerService.getRegister(registerService.defaultRegister)
     if (systemRegister != null) {
       val text = systemRegister.text
       if (text != null) {

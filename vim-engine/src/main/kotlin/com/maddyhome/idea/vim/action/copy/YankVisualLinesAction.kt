@@ -61,8 +61,8 @@ class YankVisualLinesAction : VisualOperatorActionHandler.SingleExecution() {
     */
     // 修改后: [ADDED] visual Y 复制内容到系统粘贴板 #2. 通过 map vnoremap Y "*y", 还不支持vnoremap YY :y<CR>; 需另一个feature
     val ret = injector.yank.yankRange(editor, context, TextRange(startsArray, endsArray), SelectionType.BLOCK_WISE, true)
-    val register = injector.registerGroup
-    val systemRegister = register.getRegister(register.defaultRegister)
+    val registerService = injector.registerGroup
+    val systemRegister = registerService.getRegister(registerService.defaultRegister)
     if (systemRegister != null) {
       val text = systemRegister.text
       if (text != null) {
